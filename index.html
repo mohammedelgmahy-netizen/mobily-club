@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#060A14">
+<title>MOBILY CLUB</title>
+<style>html,body{margin:0;height:100%;background:#060A14;color:#94A3C4;font-family:system-ui,Tahoma,sans-serif}
+.l{height:100%;display:grid;place-items:center;text-align:center}.s{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:#22D3EE;animation:r .8s linear infinite;margin:0 auto 12px}
+@keyframes r{to{transform:rotate(360deg)}}</style>
+</head><body><div class="l"><div><div class="s"></div><div id="m">MOBILY CLUB</div></div></div>
+<script>
+(function(){
+  var FN = "https://pending.supabase.co/functions/v1/mobily";
+  var params = {}; new URLSearchParams(location.search).forEach(function(v,k){ params[k]=v; });
+  var base = location.href.split('#')[0].split('?')[0];
+  function fail(){ document.getElementById('m').innerHTML = 'تعذر الاتصال. تأكد من الإنترنت ثم <a href="" style="color:#22D3EE">أعد المحاولة</a>'; }
+  fetch(FN, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ fn: 'page', args: [params] }) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.result) return fail();
+      window.__MC_BOOT__ = j.result.boot || {};
+      return fetch(base.replace(/[^/]*$/, '') + 'pages/' + j.result.page + '.html', { cache: 'no-cache' }).then(function(r){ return r.text(); }).then(function(html){
+        document.open(); document.write(html); document.close();
+        document.title = j.result.title || 'MOBILY CLUB';
+      });
+    }).catch(fail);
+})();
+</script></body></html>
