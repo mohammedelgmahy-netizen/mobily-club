@@ -151,10 +151,26 @@ body.admin .pos{color:#059669}body.admin .neg{color:#DC2626}
 .topbar{position:sticky;top:0;z-index:30;background:#0B1222;color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .topbar .logo small{color:#7DD3FC}
 .topbar .who{font-size:12.5px;color:#CBD5E1;text-align:end}
-.nav{position:sticky;top:58px;z-index:29;background:#0F1A33;display:flex;gap:4px;overflow-x:auto;padding:6px 10px;scrollbar-width:none}
-.nav::-webkit-scrollbar{display:none}
-.nav button{flex:0 0 auto;border:0;background:transparent;color:#AFC0E0;font:inherit;font-weight:700;font-size:13.5px;padding:8px 12px;border-radius:10px;cursor:pointer;white-space:nowrap}
-.nav button.on{background:#fff;color:#0B1222}
+.shell{display:flex;align-items:flex-start;min-height:calc(100vh - 58px)}
+.nav{position:sticky;top:58px;flex:0 0 15.5rem;width:15.5rem;height:calc(100vh - 58px);overflow-y:auto;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;gap:4px;padding:12px;scrollbar-width:thin}
+.nav button{position:relative;display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;color:#334155;font:inherit;font-weight:700;font-size:14px;padding:8px 10px;border-radius:10px;cursor:pointer;text-align:start}
+.nav button:hover{background:#F1F3F6;color:var(--text)}
+.nav .nav-ic{font-style:normal;width:32px;height:32px;flex:0 0 32px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;font-size:16px;background:color-mix(in srgb,var(--c) 16%,#fff);color:var(--c)}
+.nav button.on{background:#E0F7FA;color:#0E7490}
+.nav button.on .nav-ic{background:var(--c);color:#fff}
+.nav button.on::before{content:"";position:absolute;right:-12px;top:8px;bottom:8px;width:4px;border-radius:4px 0 0 4px;background:#0891B2}
+.shell .main{flex:1;min-width:0}
+@media (max-width:900px){
+  .nav{flex-basis:84px;width:84px;padding:8px 5px;gap:3px}
+  .nav button{flex-direction:column;gap:3px;padding:8px 2px;text-align:center;font-size:10.5px;line-height:1.25;justify-content:center}
+  .nav button span{white-space:normal;word-break:break-word}
+  .nav .nav-ic{width:30px;height:30px;flex-basis:30px;font-size:17px}
+  .nav button.on::before{right:-5px}
+  .shell .main{padding:12px 10px}
+  .shell .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .shell .kpi{padding:10px}
+  .shell .kpi b{font-size:20px}
+}
 .main{max-width:1180px;margin:0 auto;padding:16px}
 .grid{display:grid;gap:12px}
 .kpis{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
@@ -196,7 +212,7 @@ body.admin .pos{color:#059669}body.admin .neg{color:#DC2626}
 .recip{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #EEF1F6}
 .recip .msg{font-size:12px;color:var(--muted);white-space:pre-line;max-height:3.2em;overflow:hidden}
 #scanVideo{width:100%;border-radius:14px;background:#000;max-height:320px}
-@media print{.topbar,.nav,.noprint{display:none!important}.main{padding:0}body.admin{background:#fff}}
+@media print{.topbar,.nav,.noprint{display:none!important}.shell{display:block}.main{padding:0}body.admin{background:#fff}}
 </style>
 </head>
 <body class="admin">
@@ -231,8 +247,10 @@ body.admin .pos{color:#059669}body.admin .neg{color:#DC2626}
 
 <div id="appView" class="hidden">
   <div class="topbar"><div id="topLogo"></div><div class="who"><div id="whoName"></div><a href="#" id="pwLink" style="color:#7DD3FC">كلمة المرور</a> · <a href="#" id="logoutBtn" style="color:#FCA5A5">خروج</a></div></div>
-  <nav class="nav" id="nav"></nav>
-  <main class="main" id="view"></main>
+  <div class="shell">
+    <nav class="nav" id="nav"></nav>
+    <main class="main" id="view"></main>
+  </div>
 </div>
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
@@ -388,19 +406,19 @@ function boot() {
 }
 
 var PAGES = [
-  ['dashboard', 'لوحة المؤشرات', 'dashboard'], ['sales', 'تسجيل بيع / استبدال', 'sales'], ['customers', 'العملاء', 'customers_view'],
-  ['offers', 'العروض', 'offers_manage'], ['whatsapp', 'واتساب', 'whatsapp'], ['ledger', 'سجل النقاط', 'customers_view'],
-  ['settings', 'الإعدادات', 'settings'], ['users', 'الموظفون', 'users_manage'], ['activity', 'سجل العمليات', 'audit'], ['qr', 'QR المحل', null]
+  ['dashboard', 'لوحة المؤشرات', 'dashboard', '📊', '#0891B2'], ['sales', 'تسجيل بيع / استبدال', 'sales', '🧾', '#16A34A'], ['customers', 'العملاء', 'customers_view', '👥', '#2563EB'],
+  ['offers', 'العروض', 'offers_manage', '🎁', '#DB2777'], ['whatsapp', 'واتساب', 'whatsapp', '💬', '#059669'], ['ledger', 'سجل النقاط', 'customers_view', '⭐', '#D97706'],
+  ['settings', 'الإعدادات', 'settings', '⚙️', '#475569'], ['users', 'الموظفون', 'users_manage', '🧑‍💼', '#7C3AED'], ['activity', 'سجل العمليات', 'audit', '📋', '#0F766E'], ['qr', 'QR المحل', null, '🔳', '#0B1222']
 ];
 function buildNav() {
   $('#nav').innerHTML = PAGES.filter(function (p) { return !p[2] || can(p[2]); })
-    .map(function (p) { return '<button type="button" data-p="' + p[0] + '">' + p[1] + '</button>'; }).join('');
+    .map(function (p) { return '<button type="button" data-p="' + p[0] + '" style="--c:' + p[4] + '"><i class="nav-ic">' + p[3] + '</i><span>' + p[1] + '</span></button>'; }).join('');
   $all('#nav button').forEach(function (b) { b.onclick = function () { go(b.dataset.p); }; });
 }
 function go(p) {
   stopScan(); CUR = p;
   $all('#nav button').forEach(function (b) { b.classList.toggle('on', b.dataset.p === p); });
-  var v = $('#view'); loading(v);
+  var v = $('#view'); loading(v); window.scrollTo(0, 0);
   ({ dashboard: viewDashboard, sales: viewSales, customers: viewCustomers, offers: viewOffers, whatsapp: viewWhatsApp,
      ledger: viewLedger, settings: viewSettings, users: viewUsers, activity: viewActivity, qr: viewQR }[p] || viewDashboard)(v);
 }
