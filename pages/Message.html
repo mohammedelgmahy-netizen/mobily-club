@@ -76,7 +76,9 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--brand);flex:0 0 a
 .lcard::after{content:"";position:absolute;left:-30px;bottom:-60px;width:220px;height:220px;border-radius:50%;
   border:28px solid rgba(34,211,238,.07)}
 .lcard .top{display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:1}
-.lcard .brand{font-family:'Inter',sans-serif;font-weight:800;font-size:20px;letter-spacing:1.5px;direction:ltr}
+.lcard .brand{font-family:'Inter',sans-serif;font-weight:800;font-size:20px;letter-spacing:1.5px;direction:ltr;display:flex;align-items:center;gap:9px}
+.lcard .brand .bm{width:34px;height:34px;flex:0 0 34px;border-radius:9px;background:linear-gradient(135deg,#22D3EE,#7C3AED);display:grid;place-items:center}
+.lcard .brand .bm svg{width:34px;height:34px}
 .lcard .brand span{display:block;font-size:9.5px;letter-spacing:4px;color:var(--brand);font-weight:700}
 .lcard .tier{font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);letter-spacing:.5px}
 .lcard .mid{position:absolute;inset:auto 20px 16px 20px;display:flex;justify-content:space-between;align-items:flex-end;z-index:1;gap:10px}
