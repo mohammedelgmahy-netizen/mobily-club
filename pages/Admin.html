@@ -1246,13 +1246,20 @@ function viewWhatsApp(v) {
   v.innerHTML = '<div class="card"><h2>إرسال عرض للعملاء على واتساب</h2>' +
     '<p class="small muted">الإرسال يدوي ومجاني: النظام يجهز رسالة مخصصة لكل عميل، وأنت تضغط "إرسال" فيفتح واتساب (يفضل WhatsApp Business) بالرسالة جاهزة. تظهر فقط أسماء العملاء النشطين الذين وافقوا على استقبال العروض والمستهدفين بالعرض.</p>' +
     '<div class="toolbar"><select id="waOffer"><option value="">— اختر عرضاً —</option></select><button class="btn sm" id="waPrep" type="button">تجهيز الرسائل</button><button class="btn ghost sm" id="waLogBtn" type="button">سجل الإرسال</button></div>' +
-    '<details style="margin-bottom:10px"><summary class="small" style="cursor:pointer;font-weight:700">تعديل نص الرسالة لهذه الحملة (اختياري)</summary><textarea id="waTpl" rows="8" style="margin-top:8px"></textarea><div class="small muted">المتغيرات: {name} {offer_title} {offer_desc} {end_date} {points} {link} {unsub_link} {shop} {phone} {member_no}</div></details>' +
+    '<details style="margin-bottom:10px"><summary class="small" style="cursor:pointer;font-weight:700">تعديل نص الرسالة لهذه الحملة (اختياري)</summary><textarea id="waTpl" rows="8" style="margin-top:8px"></textarea><div class="small muted" id="waTplHelp">المتغيرات: {name} {offer_title} {offer_desc} {end_date} {points} {link} {unsub_link} {shop} {phone} {member_no}</div></details>' +
     '<div id="waRes"></div></div>';
   call('waOffers').then(function (offers) {
     WA_OFFERS = {}; offers.forEach(function (o) { WA_OFFERS[o.offer_id] = o; });
     $('#waOffer').innerHTML += offers.map(function (o) { return '<option value="' + esc(o.offer_id) + '">' + esc(o.title) + (o.status === 'scheduled' ? ' (مجدول)' : '') + '</option>'; }).join('');
+    if (hasFeature('community')) $('#waOffer').innerHTML += '<option value="__community">📣 دعوة لمجتمع واتساب (مرة واحدة لكل عميل)</option>';
   });
-  if (can('settings')) call('getSettings').then(function (s) { var t = s.settings.filter(function (x) { return x.key === 'wa_offer_template'; })[0]; if (t && !$('#waTpl').value) $('#waTpl').value = t.value; }).catch(function () { });
+  var tpls = {}, varsHelp = { offer: 'المتغيرات: {name} {offer_title} {offer_desc} {end_date} {points} {link} {unsub_link} {shop} {phone} {member_no}', community: 'المتغيرات: {name} {community_link} {shop} {phone} {member_no}' };
+  var setTpl = function () { var k = $('#waOffer').value === '__community' ? 'community' : 'offer'; if (tpls[k] !== undefined) $('#waTpl').value = tpls[k]; $('#waTplHelp').textContent = varsHelp[k]; };
+  if (can('settings')) call('getSettings').then(function (s) {
+    s.settings.forEach(function (x) { if (x.key === 'wa_offer_template') tpls.offer = x.value; if (x.key === 'wa_community_template') tpls.community = x.value; });
+    if (!$('#waTpl').value) setTpl();
+  }).catch(function () { });
+  $('#waOffer').onchange = function () { $('#waRes').innerHTML = ''; setTpl(); };
   $('#waPrep').onclick = prepWa;
   $('#waLogBtn').onclick = function () {
     var box = $('#waRes'); loading(box);
@@ -1266,7 +1273,16 @@ function viewWhatsApp(v) {
 function prepWa() {
   var id = $('#waOffer').value; if (!id) return toast('اختر عرضاً أولاً', true);
   var box = $('#waRes'); loading(box);
-  Promise.all([call('waPrepare', { offer_id: id, template: $('#waTpl').value }), ensureDays()]).then(function (res) { waSelectStep(id, res[0]); })
+  var comm = id === '__community';
+  Promise.all([comm ? call('waCommunity', { template: $('#waTpl').value }) : call('waPrepare', { offer_id: id, template: $('#waTpl').value }), ensureDays()]).then(function (res) {
+    if (res[0].need_link) {
+      box.innerHTML = '<div class="err">لسه مفيش رابط مجتمع واتساب. حطه في الإعدادات ← رابط دعوة مجتمع واتساب (لازم يبدأ بـ https://chat.whatsapp.com/).' +
+        (can('settings') ? ' <button class="btn ghost sm" id="waSetLink" type="button">افتح الإعدادات</button>' : '') + '</div>';
+      if ($('#waSetLink')) $('#waSetLink').onclick = function () { go('settings', { back: ['whatsapp', 'واتساب'] }); };
+      return;
+    }
+    waSelectStep(comm ? '' : id, res[0]);
+  })
     .catch(function (e) { box.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
 }
 
@@ -1293,11 +1309,12 @@ function waSelectStep(id, r, keep) {
     }
     return true;
   };
+  var canPick = function (x) { return !(r.community && x.sent_at); };
   var selCount = function () { return all.filter(function (x) { return sel[x.customer_id]; }).length; };
   var sent = all.filter(function (x) { return x.sent_at; }).length;
 
   box.innerHTML = '<div class="grid kpis" style="margin-bottom:10px">' +
-    '<div class="kpi"><span>مستهدفون وموافقون</span><b>' + fmtNum(all.length) + '</b></div><div class="kpi"><span>اتبعتلهم العرض ده قبل كده</span><b>' + fmtNum(sent) + '</b></div>' +
+    '<div class="kpi"><span>' + (r.community ? 'العملاء الموافقين' : 'مستهدفون وموافقون') + '</span><b>' + fmtNum(all.length) + '</b></div><div class="kpi"><span>' + (r.community ? 'اتبعتلهم الدعوة قبل كده' : 'اتبعتلهم العرض ده قبل كده') + '</span><b>' + fmtNum(sent) + '</b></div>' +
     '<div class="kpi"><span>مستبعدون (بدون موافقة)</span><b>' + fmtNum(r.excluded.no_consent) + '</b></div><div class="kpi"><span>مرسل اليوم / الحد المقترح</span><b>' + r.sent_today + ' / ' + r.daily_soft_limit + '</b></div></div>' +
     (!r.offer.live ? '<div class="err">تنبيه: العرض غير ساري حالياً (مجدول أو منتهي).</div>' : '') +
     (all.length ? '<div class="card" style="margin-bottom:12px"><h2>1) اختار العملاء اللي هيتبعتلهم</h2>' +
@@ -1319,22 +1336,23 @@ function waSelectStep(id, r, keep) {
     var rows = all.filter(match), pages = Math.max(1, Math.ceil(rows.length / WA_PAGE));
     if (page >= pages) page = pages - 1;
     var cur = rows.slice(page * WA_PAGE, page * WA_PAGE + WA_PAGE);
-    var pageAll = cur.length && cur.every(function (x) { return sel[x.customer_id]; });
-    var rowsAll = rows.length && rows.every(function (x) { return sel[x.customer_id]; });
+    var curP = cur.filter(canPick), rowsP = rows.filter(canPick);
+    var pageAll = curP.length && curP.every(function (x) { return sel[x.customer_id]; });
+    var rowsAll = rowsP.length && rowsP.every(function (x) { return sel[x.customer_id]; });
     var rowsSel = rows.filter(function (x) { return sel[x.customer_id]; }).length;
-    $('#wsBar').innerHTML = '<label class="ws-all"><input type="checkbox" id="wsPageAll"' + (pageAll ? ' checked' : '') + (cur.length ? '' : ' disabled') + '> Select All – ' +
-      (pages > 1 ? 'الصفحة دي بس (' + fmtNum(cur.length) + ')' : 'كل الظاهرين (' + fmtNum(cur.length) + ')') + '</label>' +
+    $('#wsBar').innerHTML = '<label class="ws-all"><input type="checkbox" id="wsPageAll"' + (pageAll ? ' checked' : '') + (curP.length ? '' : ' disabled') + '> Select All – ' +
+      (pages > 1 ? 'الصفحة دي بس (' + fmtNum(curP.length) + ')' : 'كل الظاهرين (' + fmtNum(curP.length) + ')') + '</label>' +
       '<div class="small muted">الظاهرين بالفلتر: ' + fmtNum(rows.length) + ' عميل' + (rowsSel ? ' · منهم محددين: ' + fmtNum(rowsSel) : '') + '</div>' +
-      (pages > 1 ? '<div class="ws-note">' + (rowsAll ? 'كل الـ ' + fmtNum(rows.length) + ' عميل المطابقين للفلتر محددين (في كل الصفحات).' :
-        (pageAll ? 'اتحدد ' + fmtNum(cur.length) + ' عميل في الصفحة دي بس. ' : '') + '<button class="btn ghost sm" type="button" id="wsRowsAll">حدد كل الـ ' + fmtNum(rows.length) + ' عميل المطابقين للفلتر</button>') + '</div>' : '') +
+      (pages > 1 && rowsP.length ? '<div class="ws-note">' + (rowsAll ? 'كل الـ ' + fmtNum(rowsP.length) + ' عميل المطابقين للفلتر محددين (في كل الصفحات).' :
+        (pageAll ? 'اتحدد ' + fmtNum(curP.length) + ' عميل في الصفحة دي بس. ' : '') + '<button class="btn ghost sm" type="button" id="wsRowsAll">حدد كل الـ ' + fmtNum(rowsP.length) + ' عميل المطابقين للفلتر</button>') + '</div>' : '') +
       '<div class="toolbar" style="margin:6px 0 0">' + (rowsSel ? '<button class="btn ghost sm" type="button" id="wsRowsNone">شيل التحديد من الظاهرين بالفلتر</button>' : '') +
       (selCount() ? '<button class="btn ghost sm" type="button" id="wsNone">شيل التحديد من الكل</button>' : '') + '</div>';
     $('#wsList').innerHTML = cur.length ? cur.map(function (x) {
-      return '<label class="recip ws-row"><input type="checkbox" class="ws-c" data-id="' + esc(x.customer_id) + '"' + (sel[x.customer_id] ? ' checked' : '') + '>' +
+      return '<label class="recip ws-row"' + (canPick(x) ? '' : ' style="opacity:.55;cursor:default"') + '><input type="checkbox" class="ws-c" data-id="' + esc(x.customer_id) + '"' + (sel[x.customer_id] ? ' checked' : '') + (canPick(x) ? '' : ' disabled') + '>' +
         '<div style="min-width:0;flex:1"><b>' + esc(x.name) + '</b> <span class="small muted">' + esc(x.member_no) + ' · ' + esc(x.phone) + '</span>' +
         '<div class="small muted">' + (x.tier ? esc(x.tier) + ' · ' : '') + (x.points_balance !== undefined ? fmtNum(x.points_balance) + ' نقطة · ' : '') +
         (x.last_purchase_at !== undefined ? (x.last_purchase_at ? 'آخر شراء ' + d(x.last_purchase_at) : 'عمره ما اشترى') : '') +
-        (x.sent_at ? ' · <span style="color:#16A34A">✓ اتبعتله العرض ده قبل كده</span>' : '') + '</div></div></label>';
+        (x.sent_at ? ' · <span style="color:#16A34A">✓ ' + (r.community ? 'اتبعتله الدعوة قبل كده' : 'اتبعتله العرض ده قبل كده') + '</span>' : '') + '</div></div></label>';
     }).join('') : '<div class="empty">مفيش عملاء مطابقين للفلتر</div>';
     $('#wsPager').innerHTML = pages > 1 ? '<button class="btn ghost sm" type="button" id="wsPrev"' + (page ? '' : ' disabled') + '>السابق</button><span class="small">صفحة ' + (page + 1) + ' من ' + pages + '</span><button class="btn ghost sm" type="button" id="wsNext"' + (page < pages - 1 ? '' : ' disabled') + '>التالي</button>' : '';
     var n = selCount();
@@ -1342,8 +1360,8 @@ function waSelectStep(id, r, keep) {
     $('#wsReview').disabled = !n;
 
     $all('.ws-c', box).forEach(function (c) { c.onchange = function () { if (c.checked) sel[c.dataset.id] = true; else delete sel[c.dataset.id]; render(); }; });
-    $('#wsPageAll').onchange = function () { var on = this.checked; cur.forEach(function (x) { if (on) sel[x.customer_id] = true; else delete sel[x.customer_id]; }); render(); };
-    if ($('#wsRowsAll')) $('#wsRowsAll').onclick = function () { rows.forEach(function (x) { sel[x.customer_id] = true; }); render(); };
+    $('#wsPageAll').onchange = function () { var on = this.checked; curP.forEach(function (x) { if (on) sel[x.customer_id] = true; else delete sel[x.customer_id]; }); render(); };
+    if ($('#wsRowsAll')) $('#wsRowsAll').onclick = function () { rowsP.forEach(function (x) { sel[x.customer_id] = true; }); render(); };
     if ($('#wsRowsNone')) $('#wsRowsNone').onclick = function () { rows.forEach(function (x) { delete sel[x.customer_id]; }); render(); };
     if ($('#wsNone')) $('#wsNone').onclick = function () { Object.keys(sel).forEach(function (k) { delete sel[k]; }); render(); };
     if ($('#wsPrev')) $('#wsPrev').onclick = function () { page--; render(); };
@@ -1357,7 +1375,7 @@ function waSelectStep(id, r, keep) {
     $('#wsDays').addEventListener('input', function () { f.days = this.value; page = 0; render(); });
   }
   $('#wsReview').onclick = function () {
-    var list = all.filter(function (x) { return sel[x.customer_id]; });
+    var list = all.filter(function (x) { return sel[x.customer_id] && canPick(x); });
     if (list.length) waReviewStep(id, r, list, { sel: sel, f: f, page: page });
   };
   render();
@@ -1370,7 +1388,7 @@ function waReviewStep(id, r, list, keep) {
   box.innerHTML = '<div class="card" style="border:2px solid #25D366"><h2>2) مراجعة قبل الإرسال</h2>' +
     '<div class="grid kpis" style="margin-bottom:10px"><div class="kpi"><span>العملاء المحددين</span><b>' + fmtNum(list.length) + '</b></div>' +
     '<div class="kpi"><span>منهم اتبعتلهم العرض ده قبل كده</span><b>' + fmtNum(again) + '</b></div>' +
-    '<div class="kpi"><span>العرض</span><b style="font-size:16px">' + esc(r.offer.title) + '</b></div></div>' +
+    '<div class="kpi"><span>' + (r.community ? 'الرسالة' : 'العرض') + '</span><b style="font-size:16px">' + esc(r.offer.title) + '</b></div></div>' +
     (again ? '<p class="small muted">اللي اتبعتلهم قبل كده مش هيتبعتلهم تاني في الإرسال المتتابع.</p>' : '') +
     '<label>نص الرسالة (بيتكتب باسم كل عميل؛ ده مثال لأول عميل: ' + esc(list[0].name) + ')</label>' +
     '<div class="msg" style="white-space:pre-line;overflow-wrap:anywhere;word-break:break-word;background:#F6F8FB;border-radius:10px;padding:10px;font-size:13px;max-height:none">' + esc(list[0].message) + '</div>' +
@@ -1390,9 +1408,9 @@ function waSendStep(id, r, list, keep) {
     '<a class="btn wa" id="waNext" target="_blank" rel="noopener" href="#" style="font-size:16px;padding:14px"></a>' +
     '<div class="small muted" id="waNextInfo" style="margin-top:8px;text-align:center"></div>' +
     '<div class="toolbar" style="margin-top:8px"><button class="btn ghost sm" type="button" id="wsBack">رجوع لتعديل الاختيار</button></div></div>' +
-    '<details class="card" style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:700">📢 أو: رسالة واحدة لقائمة البث في واتساب بيزنس</summary>' +
+    (r.community ? '' : '<details class="card" style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:700">📢 أو: رسالة واحدة لقائمة البث في واتساب بيزنس</summary>' +
     '<p class="small muted" style="margin-top:8px">في واتساب بيزنس: القائمة ⋮ ← بث جديد ← اختار العملاء ← الصق الرسالة دي ← إرسال. بتوصل لكل اللي في القائمة مرة واحدة، بس بتوصل بس للعملاء اللي مسجلين رقم المحل عندهم، والرسالة مش بتبقى باسم كل عميل.</p>' +
-    '<textarea id="waBc" rows="7" readonly></textarea><button class="btn ghost sm" id="waBcCopy" type="button" style="margin-top:6px">نسخ الرسالة</button></details>' +
+    '<textarea id="waBc" rows="7" readonly></textarea><button class="btn ghost sm" id="waBcCopy" type="button" style="margin-top:6px">نسخ الرسالة</button></details>') +
     '<div class="card"><h2>المحددين</h2>' + list.map(function (x, i) {
       return '<div class="recip" id="rc' + i + '"><div style="min-width:0;flex:1"><b>' + esc(x.name) + '</b> <span class="small muted">' + esc(x.member_no) + ' · ' + esc(x.phone) + '</span><div class="msg">' + esc(x.message) + '</div>' +
         '<div class="small" data-st="' + i + '">' + (x.sent_at ? '✓ أُرسل ' + d(x.sent_at, 1) + (x.sent_by ? ' بواسطة ' + esc(x.sent_by) : '') : '') + '</div></div>' +
@@ -1402,7 +1420,7 @@ function waSendStep(id, r, list, keep) {
   var markSent = function (i) {
     var x = list[i];
     x.sent_at = x.sent_at || 'pending';
-    return call('waMark', { customer_id: x.customer_id, offer_id: id, status: 'sent', message: x.message, message_type: 'offer' }).then(function () {
+    return call('waMark', { customer_id: x.customer_id, offer_id: id, status: 'sent', message: x.message, message_type: r.community ? 'community' : 'offer' }).then(function () {
       x.sent_at = new Date().toISOString();
       $('[data-st="' + i + '"]').textContent = '✓ تم تسجيل الإرسال';
       $('[data-undo="' + i + '"]').style.display = '';
@@ -1421,19 +1439,21 @@ function waSendStep(id, r, list, keep) {
   };
   $('#waNext').addEventListener('click', function () { var i = Number(this.dataset.idx); if (i >= 0 && !list[i].sent_at) markSent(i); });
   $('#wsBack').onclick = function () { waSelectStep(id, r, keep); };
-  var of = WA_OFFERS[id] || {}, ro = r.offer || {};
-  var bcTitle = ro.title || of.title || '', bcDesc = ro.description || of.description || '';
-  var bcEnd = ro.end_date || (of.end_date ? d(of.end_date) : '');
-  var bcBase = r.base_url || BOOT.base || (location.origin + location.pathname), bcShop = r.shop || PS.shop_name_ar || PS.shop_name || '', bcPhone = r.shop_phone || PS.shop_phone || '';
-  $('#waBc').value = '🎁 ' + bcTitle + (bcDesc ? '\n' + bcDesc : '') + (bcEnd ? '\n\n⏳ العرض ساري حتى ' + bcEnd : '') +
-    '\n\nسجّل أو افتح كارتك واعرف رصيد نقاطك:\n' + bcBase + '\n\n' + bcShop + (bcPhone ? ' – ' + bcPhone : '') + '\nلإيقاف العروض ابعت كلمة "إيقاف".';
-  $('#waBcCopy').onclick = function () { copyText($('#waBc').value).then(function () { toast('تم النسخ ✓'); }); };
+  if (!r.community) {
+    var of = WA_OFFERS[id] || {}, ro = r.offer || {};
+    var bcTitle = ro.title || of.title || '', bcDesc = ro.description || of.description || '';
+    var bcEnd = ro.end_date || (of.end_date ? d(of.end_date) : '');
+    var bcBase = r.base_url || BOOT.base || (location.origin + location.pathname), bcShop = r.shop || PS.shop_name_ar || PS.shop_name || '', bcPhone = r.shop_phone || PS.shop_phone || '';
+    $('#waBc').value = '🎁 ' + bcTitle + (bcDesc ? '\n' + bcDesc : '') + (bcEnd ? '\n\n⏳ العرض ساري حتى ' + bcEnd : '') +
+      '\n\nسجّل أو افتح كارتك واعرف رصيد نقاطك:\n' + bcBase + '\n\n' + bcShop + (bcPhone ? ' – ' + bcPhone : '') + '\nلإيقاف العروض ابعت كلمة "إيقاف".';
+    $('#waBcCopy').onclick = function () { copyText($('#waBc').value).then(function () { toast('تم النسخ ✓'); }); };
+  }
   updateNext();
   $all('[data-send]', box).forEach(function (a) { a.addEventListener('click', function () { markSent(Number(a.dataset.send)); }); });
   $all('[data-undo]', box).forEach(function (b) {
     b.onclick = function () {
       var x = list[b.dataset.undo];
-      call('waMark', { customer_id: x.customer_id, offer_id: id, status: 'cancelled' }).then(function () {
+      call('waMark', { customer_id: x.customer_id, offer_id: id, status: 'cancelled', message_type: r.community ? 'community' : 'offer' }).then(function () {
         x.sent_at = null; $('[data-st="' + b.dataset.undo + '"]').textContent = ''; b.style.display = 'none';
         updateNext();
       }).catch(function (e) { toast(e.message, true); });

@@ -217,6 +217,8 @@ details.howto summary{cursor:pointer;font-weight:700}
     <div class="panel">
       <a class="btn" id="openCard" href="#" target="_top"><span data-i18n="openCard">افتح كارتي</span></a>
       <div style="height:10px"></div>
+      <a class="btn wa hidden" id="joinComm" href="#" target="_blank" rel="noopener"><span data-i18n="joinComm">انضم لعروض موبايلي على واتساب</span></a>
+      <div style="height:10px" id="joinCommGap" class="hidden"></div>
       <button class="btn ghost" id="copyLink" type="button"><span data-i18n="copy">انسخ رابط الكارت</span></button>
       <p class="small muted" style="margin-top:12px" data-i18n="saveHint">مهم: افتح الكارت ثم أضفه للشاشة الرئيسية. الرابط خاص بيك، ما تشاركوش مع حد.</p>
     </div>
@@ -323,6 +325,7 @@ var T = {
     badge: 'Free membership', sub: 'Join in seconds and get a digital loyalty card on your phone — no app needed.',
     ruleEarnL: 'point', ruleRedeemL: 'discount', name: 'Full name', phone: 'Mobile number', consentNote: 'Optional – joining does not require it.',
     submit: 'Get my card', privacy: 'Your data is used only for the loyalty program and never shared.',
+    joinComm: 'Join MOBILY offers on WhatsApp',
     welcome: 'Welcome to the club 🎉', doneTitle: 'Your card is ready!', openCard: 'Open my card', copy: 'Copy card link',
     saveHint: 'Important: open your card and add it to your home screen. The link is private — do not share it.',
     namePh: 'Your name', copied: 'Copied ✓',
@@ -372,6 +375,7 @@ $('#regForm').addEventListener('submit', function (ev) {
   api('publicApi', 'register', data).then(function (res) {
     $('#formView').classList.add('hidden'); $('#doneView').classList.remove('hidden');
     $('#openCard').href = res.card_url;
+    if (S.wa_community_link) { $('#joinComm').href = S.wa_community_link; $('#joinComm').classList.remove('hidden'); $('#joinCommGap').classList.remove('hidden'); }
     $('#previewCard').innerHTML =
       '<div class="top"><div class="brand">' + esc(S.shop_name) + '<span>CLUB</span></div><div class="tier">' + (LANG === 'en' ? 'MEMBER' : 'عضو') + '</div></div>' +
       '<div class="chipicon"></div><div class="tag">' + esc(S.tagline) + '</div>' +
