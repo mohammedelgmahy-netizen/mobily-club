@@ -816,6 +816,7 @@ function offerForm(o) {
 }
 
 /* ---------------- واتساب ---------------- */
+var WA_OFFERS = {};
 function viewWhatsApp(v) {
   v.innerHTML = '<div class="card"><h2>إرسال عرض للعملاء على واتساب</h2>' +
     '<p class="small muted">الإرسال يدوي ومجاني: النظام يجهز رسالة مخصصة لكل عميل، وأنت تضغط "إرسال" فيفتح واتساب (يفضل WhatsApp Business) بالرسالة جاهزة. تظهر فقط أسماء العملاء النشطين الذين وافقوا على استقبال العروض والمستهدفين بالعرض.</p>' +
@@ -823,6 +824,7 @@ function viewWhatsApp(v) {
     '<details style="margin-bottom:10px"><summary class="small" style="cursor:pointer;font-weight:700">تعديل نص الرسالة لهذه الحملة (اختياري)</summary><textarea id="waTpl" rows="8" style="margin-top:8px"></textarea><div class="small muted">المتغيرات: {name} {offer_title} {offer_desc} {end_date} {points} {link} {unsub_link} {shop} {phone} {member_no}</div></details>' +
     '<div id="waRes"></div></div>';
   call('waOffers').then(function (offers) {
+    WA_OFFERS = {}; offers.forEach(function (o) { WA_OFFERS[o.offer_id] = o; });
     $('#waOffer').innerHTML += offers.map(function (o) { return '<option value="' + esc(o.offer_id) + '">' + esc(o.title) + (o.status === 'scheduled' ? ' (مجدول)' : '') + '</option>'; }).join('');
   });
   if (can('settings')) call('getSettings').then(function (s) { var t = s.settings.filter(function (x) { return x.key === 'wa_offer_template'; })[0]; if (t && !$('#waTpl').value) $('#waTpl').value = t.value; }).catch(function () { });
@@ -882,8 +884,12 @@ function prepWa() {
     };
     if ($('#waNext')) {
       $('#waNext').addEventListener('click', function () { var i = Number(this.dataset.idx); if (i >= 0 && !r.recipients[i].sent_at) markSent(i); });
-      $('#waBc').value = '🎁 ' + r.offer.title + (r.offer.description ? '\n' + r.offer.description : '') + (r.offer.end_date ? '\n\n⏳ العرض ساري حتى ' + r.offer.end_date : '') +
-        '\n\nسجّل أو افتح كارتك واعرف رصيد نقاطك:\n' + r.base_url + '\n\n' + r.shop + ' – ' + r.shop_phone + '\nلإيقاف العروض ابعت كلمة "إيقاف".';
+      var of = WA_OFFERS[id] || {}, ro = r.offer || {};
+      var bcTitle = ro.title || of.title || '', bcDesc = ro.description || of.description || '';
+      var bcEnd = ro.end_date || (of.end_date ? d(of.end_date) : '');
+      var bcBase = r.base_url || BOOT.base || (location.origin + location.pathname), bcShop = r.shop || PS.shop_name_ar || PS.shop_name || '', bcPhone = r.shop_phone || PS.shop_phone || '';
+      $('#waBc').value = '🎁 ' + bcTitle + (bcDesc ? '\n' + bcDesc : '') + (bcEnd ? '\n\n⏳ العرض ساري حتى ' + bcEnd : '') +
+        '\n\nسجّل أو افتح كارتك واعرف رصيد نقاطك:\n' + bcBase + '\n\n' + bcShop + (bcPhone ? ' – ' + bcPhone : '') + '\nلإيقاف العروض ابعت كلمة "إيقاف".';
       $('#waBcCopy').onclick = function () { copyText($('#waBc').value).then(function () { toast('تم النسخ ✓'); }); };
       updateNext();
     }
