@@ -108,6 +108,9 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--brand);flex:0 0 a
 .progress i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--brand),var(--brand2))}
 .reward{display:flex;gap:12px;align-items:center;border-radius:16px;padding:14px;background:linear-gradient(135deg,rgba(245,196,81,.18),rgba(245,196,81,.04));border:1px solid rgba(245,196,81,.35)}
 .reward .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--gold);color:#3B2A00;flex:0 0 auto}
+.bday{display:flex;gap:12px;align-items:center;margin:16px 0 4px;padding:14px;border-radius:16px;background:linear-gradient(135deg,rgba(236,72,153,.22),rgba(245,197,66,.22));border:1px solid rgba(245,197,66,.5)}
+.bday.used{opacity:.75}
+.bday-ic{font-size:34px;line-height:1}
 .offer{border-radius:16px;overflow:hidden;border:1px solid var(--line);background:var(--surface);margin:10px 0}
 .offer img{width:100%;max-height:220px;object-fit:cover;display:block}
 .offer .b{padding:12px 14px}
@@ -167,6 +170,9 @@ details.howto summary{cursor:pointer;font-weight:700}
       <label for="pin" data-i18n="pin">رقم سري (4 أرقام)</label>
       <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="new-password" required maxlength="4" placeholder="••••" style="direction:ltr;text-align:right;letter-spacing:6px">
       <div class="small muted" data-i18n="pinNote">هتحتاجه مع رقم موبايلك علشان تفتح كارتك من أي موبايل بعد كده.</div>
+      <label for="birth" data-i18n="birth">تاريخ ميلادك (اختياري)</label>
+      <input id="birth" name="birth" type="date" autocomplete="bday" style="direction:ltr;text-align:right">
+      <div class="small muted" data-i18n="birthNote">🎂 علشان يوصلك عرض هدية في عيد ميلادك.</div>
       <input type="text" name="website" id="website" tabindex="-1" autocomplete="off" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;clip:rect(0 0 0 0);overflow:hidden;padding:0;border:0" aria-hidden="true">
 
       <label class="check" for="consent">
@@ -315,6 +321,7 @@ var T = {
     welcome: 'Welcome to the club 🎉', doneTitle: 'Your card is ready!', openCard: 'Open my card', copy: 'Copy card link',
     saveHint: 'Important: open your card and add it to your home screen. The link is private — do not share it.',
     namePh: 'Your name', copied: 'Copied ✓',
+    birth: 'Date of birth (optional)', birthNote: '🎂 So you get a birthday gift offer.',
     pin: '4-digit PIN', pinNote: 'You will need it with your mobile number to open your card from any phone.', pinOnly: 'PIN',
     haveCard: 'Already a member?', openMine: 'Open my card', openSaved: 'Open the card saved on this phone',
     loginTitle: 'Open your card', loginSub: 'Enter your mobile number and the PIN you chose when you joined.',
@@ -351,7 +358,8 @@ $('#regForm').addEventListener('submit', function (ev) {
   err.classList.add('hidden');
   var data = {
     name: $('#name').value, phone: $('#phone').value,
-    consent: $('#consent').checked, website: $('#website').value, lang: LANG, pin: $('#pin').value
+    consent: $('#consent').checked, website: $('#website').value, lang: LANG, pin: $('#pin').value,
+    birthdate: $('#birth').value
   };
   if (data.name.trim().length < 2) { err.textContent = LANG === 'en' ? 'Please enter your name' : 'اكتب اسمك'; err.classList.remove('hidden'); return; }
   if (!/^[0-9٠-٩]{4}$/.test(data.pin)) { err.textContent = LANG === 'en' ? 'Choose a 4-digit PIN' : 'اختار رقم سري من 4 أرقام'; err.classList.remove('hidden'); return; }

@@ -108,6 +108,9 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--brand);flex:0 0 a
 .progress i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--brand),var(--brand2))}
 .reward{display:flex;gap:12px;align-items:center;border-radius:16px;padding:14px;background:linear-gradient(135deg,rgba(245,196,81,.18),rgba(245,196,81,.04));border:1px solid rgba(245,196,81,.35)}
 .reward .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--gold);color:#3B2A00;flex:0 0 auto}
+.bday{display:flex;gap:12px;align-items:center;margin:16px 0 4px;padding:14px;border-radius:16px;background:linear-gradient(135deg,rgba(236,72,153,.22),rgba(245,197,66,.22));border:1px solid rgba(245,197,66,.5)}
+.bday.used{opacity:.75}
+.bday-ic{font-size:34px;line-height:1}
 .offer{border-radius:16px;overflow:hidden;border:1px solid var(--line);background:var(--surface);margin:10px 0}
 .offer img{width:100%;max-height:220px;object-fit:cover;display:block}
 .offer .b{padding:12px 14px}
@@ -451,10 +454,11 @@ function boot() {
 
 var PAGES = [
   ['dashboard', 'لوحة المؤشرات', 'dashboard', '📊', '#0891B2'], ['reports', 'التقارير', 'dashboard', '📈', '#2563EB'], ['sales', 'تسجيل بيع / استبدال', 'sales', '🧾', '#16A34A'], ['customers', 'العملاء', 'customers_view', '👥', '#2563EB'],
-  ['offers', 'العروض', 'offers_manage', '🎁', '#DB2777'], ['whatsapp', 'واتساب', 'whatsapp', '💬', '#059669'], ['ledger', 'سجل النقاط', 'customers_view', '⭐', '#D97706'],
+  ['offers', 'العروض', 'offers_manage', '🎁', '#DB2777'], ['whatsapp', 'واتساب', 'whatsapp', '💬', '#059669'], ['birthdays', 'أعياد الميلاد', 'whatsapp', '🎂', '#E11D48'], ['ledger', 'سجل النقاط', 'customers_view', '⭐', '#D97706'],
   ['settings', 'الإعدادات', 'settings', '⚙️', '#475569'], ['users', 'الموظفون', 'users_manage', '🧑‍💼', '#7C3AED'], ['activity', 'سجل العمليات', 'audit', '📋', '#0F766E'], ['qr', 'QR المحل', null, '🔳', '#0B1222']
 ];
 function pageOk(p) {
+  if (p[0] === 'birthdays' && !hasFeature('birthday')) return false;
   return !p[2] || can(p[2]);
 }
 function buildNav() {
@@ -471,7 +475,7 @@ function go(p, opt) {
     (GO_OPT.label ? '<span class="badge gold">' + esc(GO_OPT.label) + '</span>' : '') + '</div>' : '') + '<div id="viewIn"></div>';
   if (back) $('#backBtn').onclick = function () { go(back[0], back[2]); };
   var v = $('#viewIn'); loading(v);
-  ({ dashboard: viewDashboard, reports: viewReports, sales: viewSales, customers: viewCustomers, offers: viewOffers, whatsapp: viewWhatsApp,
+  ({ dashboard: viewDashboard, reports: viewReports, birthdays: viewBirthdays, sales: viewSales, customers: viewCustomers, offers: viewOffers, whatsapp: viewWhatsApp,
      ledger: viewLedger, settings: viewSettings, users: viewUsers, activity: viewActivity, qr: viewQR }[p] || viewDashboard)(v);
 }
 
@@ -586,7 +590,7 @@ var REPORTS = [
     load: function () { return call('waLog', {}); },
     sel: [{ k: 'offer', l: 'العرض', dyn: 'offer' }, { k: 'employee', l: 'الموظف', dyn: 'employee' }],
     cols: [{ k: 'created_at', l: 'التاريخ', date: 1 }, { k: 'member_no', l: 'العضوية' }, { k: 'phone', l: 'الموبايل', ltr: 1 }, { k: 'offer', l: 'العرض' },
-           { k: 'type', l: 'النوع', map: { offer: 'عرض', card_link: 'رابط الكارت' } }, { k: 'status', l: 'الحالة', map: { sent: 'اتبعتت', undone: 'اتلغت' } }, { k: 'employee', l: 'الموظف' }] }
+           { k: 'type', l: 'النوع', map: { offer: 'عرض', card_link: 'رابط الكارت', birthday: 'تهنئة عيد ميلاد' } }, { k: 'status', l: 'الحالة', map: { sent: 'اتبعتت', undone: 'اتلغت' } }, { k: 'employee', l: 'الموظف' }] }
 ];
 function repById(id) { return REPORTS.filter(function (r) { return r.id === id; })[0]; }
 function repOk(r) { return can(r.perm) && (!r.feat || hasFeature(r.feat)); }
@@ -797,6 +801,7 @@ function viewSales(v) {
     '<div id="saleForm" class="hidden"><h2 style="margin-top:16px">2) بيانات الفاتورة</h2>' +
     '<div class="row"><div><label>رقم الفاتورة *</label><input id="sInv" autocomplete="off" style="direction:ltr"></div><div><label>قيمة الفاتورة (' + esc(PS.currency) + ') *</label><input id="sAmt" inputmode="decimal" autocomplete="off" style="direction:ltr"></div></div>' +
     '<label>الفئة</label><select id="sCat"></select>' +
+    '<label class="check hidden" id="sBdayRow"><input type="checkbox" id="sBday"><span id="sBdayLbl">🎂 عرض عيد الميلاد</span></label>' +
     '<label class="check"><input type="checkbox" id="sRedeem"><span id="sRedeemLbl">استخدام مكافأة</span></label>' +
     '<div id="sQuote"></div><div id="sErr"></div>' +
     '<div style="height:10px"></div><button class="btn" id="sBtn" type="button" disabled>تأكيد العملية</button></div>' +
@@ -805,7 +810,7 @@ function viewSales(v) {
   $('#lkBtn').onclick = function () { doLookup($('#lkQ').value); };
   $('#lkQ').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doLookup($('#lkQ').value); } });
   $('#scanBtn').onclick = function () { startScan($('#scanBox'), function (text) { $('#lkQ').value = text; doLookup(text); }); };
-  ['sInv', 'sAmt', 'sCat', 'sRedeem'].forEach(function (id) { $('#' + id).addEventListener(id === 'sRedeem' || id === 'sCat' ? 'change' : 'input', scheduleQuote); });
+  ['sInv', 'sAmt', 'sCat', 'sRedeem', 'sBday'].forEach(function (id) { $('#' + id).addEventListener(id === 'sRedeem' || id === 'sCat' || id === 'sBday' ? 'change' : 'input', scheduleQuote); });
   $('#sBtn').onclick = doCheckout;
   loadRecent();
   setTimeout(function () { $('#lkQ').focus(); }, 50);
@@ -823,12 +828,13 @@ function doLookup(q) {
     $('#sCat').innerHTML = (r.categories || []).map(function (x) { return '<option>' + esc(x) + '</option>'; }).join('');
     $('#saleForm').classList.toggle('hidden', c.status !== 'active');
     $('#sInv').value = ''; $('#sAmt').value = ''; $('#sRedeem').checked = false; $('#sQuote').innerHTML = ''; $('#sErr').innerHTML = '';
+    $('#sBday').checked = false; $('#sBdayRow').classList.add('hidden');
     $('#sInv').focus();
   }).catch(function (e) { box.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
 }
 function scheduleQuote() { clearTimeout(SALE.quoteTimer); SALE.quoteTimer = setTimeout(doQuote, 350); }
 function saleInput() {
-  return { customer_id: SALE.customer.customer_id, invoice_no: $('#sInv').value, amount: $('#sAmt').value, category: $('#sCat').value, redeem: $('#sRedeem').checked };
+  return { customer_id: SALE.customer.customer_id, invoice_no: $('#sInv').value, amount: $('#sAmt').value, category: $('#sCat').value, redeem: $('#sRedeem').checked, birthday: $('#sBday').checked };
 }
 function doQuote() {
   if (!SALE.customer) return;
@@ -839,9 +845,13 @@ function doQuote() {
     var lbl = 'استخدام مكافأة (' + PS.redeem_points_required + ' نقطة = خصم ' + PS.discount_percent + '%)';
     $('#sRedeemLbl').innerHTML = esc(lbl) + (q.can_redeem ? ' <span class="badge green">متاحة</span>' : '<br><span class="small muted">' + esc((q.redeem_blockers || []).join('، ')) + '</span>');
     $('#sRedeem').disabled = !q.can_redeem && !$('#sRedeem').checked;
+    var bdOn = !!(q.birthday || q.birthday_applied);
+    $('#sBdayRow').classList.toggle('hidden', !bdOn);
+    if (q.birthday) $('#sBdayLbl').innerHTML = '🎂 استخدام عرض عيد الميلاد: <b>' + esc(q.birthday.offer_text) + '</b> <span class="badge green">متاح لحد ' + esc(q.birthday.end) + '</span>';
     $('#sQuote').innerHTML = '<div class="quote">' +
       '<div class="r"><span>قيمة الفاتورة</span><b>' + money(q.amount) + '</b></div>' +
-      (q.redeem ? '<div class="r"><span>خصم المكافأة ' + q.redeem.percent + '%</span><b class="neg">− ' + money(q.discount_amount) + '</b></div><div class="r"><span>نقاط مستبدلة</span><b class="neg">−' + q.redeem.points + '</b></div>' : '') +
+      (q.birthday_applied ? '<div class="r"><span>🎂 ' + esc(q.birthday_applied.offer_text) + '</span><b class="neg">' + (q.birthday_applied.type === 'gift' ? 'سلّم الهدية' : '− ' + money(q.birthday_applied.discount)) + '</b></div>' : '') +
+      (q.redeem ? '<div class="r"><span>خصم المكافأة ' + q.redeem.percent + '%</span><b class="neg">− ' + money(q.redeem.discount) + '</b></div><div class="r"><span>نقاط مستبدلة</span><b class="neg">−' + q.redeem.points + '</b></div>' : '') +
       '<div class="r big"><span>المطلوب من العميل</span><b>' + money(q.net_amount) + '</b></div>' +
       '<div class="r"><span>نقاط مكتسبة</span><b class="pos">+' + q.points_earned + '</b></div>' +
       '<div class="r"><span>الرصيد بعد العملية</span><b>' + q.balance_after + ' نقطة</b></div>' +
@@ -849,16 +859,18 @@ function doQuote() {
       (q.duplicate_invoice ? '<div class="err">رقم الفاتورة مسجل من قبل</div>' : '') + '</div>';
     $('#sErr').innerHTML = '';
     $('#sBtn').disabled = !String(p.invoice_no).trim() || !!q.duplicate_invoice;
-  }).catch(function (e) { $('#sQuote').innerHTML = ''; $('#sErr').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; if ($('#sRedeem').checked && /استبدال/.test(e.message)) $('#sRedeem').checked = false; });
+  }).catch(function (e) { $('#sQuote').innerHTML = ''; $('#sErr').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; if ($('#sRedeem').checked && /استبدال/.test(e.message)) $('#sRedeem').checked = false; if ($('#sBday').checked && /عيد ميلاد/.test(e.message)) $('#sBday').checked = false; });
 }
 function doCheckout() {
   var btn = $('#sBtn'); busy(btn, true);
   call('checkout', saleInput(), true).then(function (r) {
     var q = r.quote;
     $('#sErr').innerHTML = '<div class="okmsg"><b>تم تسجيل الفاتورة ' + esc(saleInput().invoice_no) + ' ✓</b><br>' +
-      (q.redeem ? 'خصم ' + money(q.discount_amount) + ' — المطلوب ' + money(q.net_amount) + '<br>' : '') +
+      (q.birthday_applied ? '🎂 ' + esc(q.birthday_applied.offer_text) + (q.birthday_applied.type === 'gift' ? ' — سلّم الهدية للعميل' : '') + '<br>' : '') +
+      (q.discount_amount > 0 ? 'خصم ' + money(q.discount_amount) + ' — المطلوب ' + money(q.net_amount) + '<br>' : '') +
       'نقاط مكتسبة: +' + q.points_earned + ' · الرصيد الجديد: <b>' + r.balance + '</b> نقطة</div>';
     $('#sQuote').innerHTML = ''; $('#sInv').value = ''; $('#sAmt').value = ''; $('#sRedeem').checked = false;
+    $('#sBday').checked = false; $('#sBdayRow').classList.add('hidden');
     toast('تم تسجيل العملية ✓');
     var chipP = $('.cust-chip .p'); if (chipP) chipP.textContent = r.balance;
     loadRecent();
@@ -1152,6 +1164,70 @@ function offerForm(o) {
   };
 }
 
+/* ---------------- أعياد الميلاد ---------------- */
+function viewBirthdays(v) {
+  call('bdayList', {}).then(function (r) {
+    var cur = r.current, up = r.upcoming;
+    var pending = function () { return cur.filter(function (x) { return x.wa_opt_in && !x.wa_sent_at; }); };
+    v.innerHTML =
+      (!r.enabled ? '<div class="err" style="margin-bottom:12px">عرض عيد الميلاد متوقف دلوقتي، فمش هيظهر للعملاء ولا في الكاشير. فعّله واختار نوعه وقيمته من الإعدادات ← 🎂 عروض أعياد الميلاد.' +
+        (can('settings') ? ' <button class="btn ghost sm" id="bdSet" type="button">افتح الإعدادات</button>' : '') + '</div>' : '') +
+      '<div class="grid kpis" style="margin-bottom:12px">' +
+      '<div class="kpi"><span>العرض الحالي</span><b style="font-size:17px">' + esc(r.offer_text) + '</b><span>لمدة ' + r.days + ' يوم من يوم الميلاد</span></div>' +
+      '<div class="kpi"><span>عرضهم شغال دلوقتي</span><b id="bdCur">' + fmtNum(cur.length) + '</b></div>' +
+      '<div class="kpi"><span>مستنيين تهنئة</span><b id="bdPend">' + fmtNum(pending().length) + '</b></div>' +
+      '<div class="kpi"><span>عملاء بدون تاريخ ميلاد</span><b>' + fmtNum(r.no_birthdate) + '</b></div></div>' +
+      '<div class="card" style="margin-bottom:12px"><h2>🎂 عيد ميلادهم دلوقتي</h2>' +
+      (cur.length ? '<p class="small muted">كل عميل بتتبعتله تهنئة مرة واحدة بس في السنة. اضغط الزرار، واتساب هيفتح والرسالة جاهزة، دوس إرسال وارجع هنا.</p>' +
+        '<a class="btn wa" id="bdNext" target="_blank" rel="noopener" href="#" style="font-size:16px;padding:14px;margin-bottom:6px"></a><div class="small muted" id="bdNextInfo" style="text-align:center;margin-bottom:10px"></div>' +
+        cur.map(function (x, i) {
+          return '<div class="recip" id="bd' + i + '"><div style="min-width:0;flex:1"><b>' + esc(x.name) + '</b> <span class="small muted">' + esc(x.member_no) + ' · ' + esc(x.phone) + '</span>' +
+            '<div class="small">🎁 ' + esc(x.offer_text) + ' · من ' + esc(x.start) + ' لحد ' + esc(x.end) + '</div>' +
+            '<div class="small">' + (x.status === 'used' ? badge('العرض اتستخدم' + (x.invoice_no ? ' – فاتورة ' + x.invoice_no : ''), 'green') : badge('العرض متاح', 'gold')) + '</div>' +
+            '<div class="small" data-bst="' + i + '">' + (x.wa_sent_at ? '✓ التهنئة اتبعتت ' + d(x.wa_sent_at, 1) + ' بواسطة ' + esc(x.wa_sent_by) : (x.wa_opt_in ? '' : '<span class="muted">مش موافق على رسائل واتساب، العرض يظهرله في الكارت بس</span>')) + '</div></div>' +
+            (x.wa_opt_in ? '<a class="btn wa sm" target="_blank" rel="noopener" data-bsend="' + i + '" href="' + esc(x.link) + '"' + (x.wa_sent_at ? ' style="opacity:.5;pointer-events:none"' : '') + '>' + ICONS.wa + ' تهنئة</a>' : '') + '</div>';
+        }).join('') : '<div class="empty">مفيش عملاء عيد ميلادهم في الفترة دي</div>') + '</div>' +
+      '<div class="card"><h2>أعياد ميلاد جاية (' + r.ahead + ' يوم)</h2>' + (up.length ? '<div class="tblwrap"><table class="tbl"><tr><th>عيد الميلاد</th><th>العميل</th><th>الموبايل</th><th>واتساب</th></tr>' +
+        up.map(function (x) { return '<tr class="click" data-cid="' + esc(x.customer_id) + '"><td>' + esc(x.next) + '</td><td>' + esc(x.name) + ' <span class="small muted">' + esc(x.member_no) + '</span></td><td style="direction:ltr;text-align:end">' + esc(x.phone) + '</td><td>' + (x.wa_opt_in ? badge('موافق', 'green') : badge('لا', 'gray')) + '</td></tr>'; }).join('') +
+        '</table></div>' : '<div class="empty">مفيش أعياد ميلاد في الفترة الجاية</div>') + '</div>';
+    if ($('#bdSet')) $('#bdSet').onclick = function () { go('settings', { back: ['birthdays', 'أعياد الميلاد'] }); };
+    $all('[data-cid]', v).forEach(function (tr) { tr.onclick = function () { openCustomer(tr.dataset.cid); }; });
+    var mark = function (i) {
+      var x = cur[i];
+      if (x.wa_sent_at) return;
+      x.wa_sent_at = 'pending';
+      var a = $('[data-bsend="' + i + '"]');
+      setTimeout(function () { if (a && x.wa_sent_at) { a.style.opacity = '.5'; a.style.pointerEvents = 'none'; } updateNext(); }, 300);
+      call('bdayMark', { customer_id: x.customer_id }, true).then(function (res) {
+        x.wa_sent_at = res.wa_sent_at;
+        $('[data-bst="' + i + '"]').textContent = '✓ التهنئة اتبعتت';
+        $('#bdPend').textContent = fmtNum(pending().length);
+        updateNext();
+      }).catch(function (e) {
+        toast(e.message, true);
+        if (!/قبل كده/.test(e.message)) { x.wa_sent_at = null; if (a) { a.style.opacity = ''; a.style.pointerEvents = ''; } }
+        updateNext();
+      });
+    };
+    var updateNext = function () {
+      var btn = $('#bdNext'); if (!btn) return;
+      var list = cur.filter(function (x) { return x.wa_opt_in; }), left = pending();
+      if (!left.length) {
+        btn.innerHTML = list.length ? '✓ اتبعتت تهنئة لكل الموافقين' : 'مفيش حد منهم موافق على رسائل واتساب';
+        btn.removeAttribute('href'); btn.style.opacity = '.6'; btn.style.pointerEvents = 'none';
+        $('#bdNextInfo').textContent = ''; return;
+      }
+      var x = left[0], i = cur.indexOf(x);
+      btn.href = x.link; btn.dataset.idx = i; btn.style.opacity = ''; btn.style.pointerEvents = '';
+      btn.innerHTML = ICONS.wa + ' ابعت تهنئة لـ ' + esc(x.name) + ' (' + (list.length - left.length + 1) + ' من ' + list.length + ')';
+      $('#bdNextInfo').textContent = 'فاضل ' + left.length;
+    };
+    if ($('#bdNext')) $('#bdNext').addEventListener('click', function () { var i = Number(this.dataset.idx); if (i >= 0) mark(i); });
+    $all('[data-bsend]', v).forEach(function (a) { a.addEventListener('click', function () { mark(Number(a.dataset.bsend)); }); });
+    updateNext();
+  }).catch(function (e) { v.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+}
+
 /* ---------------- واتساب ---------------- */
 var WA_OFFERS = {};
 function viewWhatsApp(v) {
@@ -1263,7 +1339,7 @@ function viewLedger(v) {
 }
 
 /* ---------------- الإعدادات ---------------- */
-var GROUPS = { program: 'قواعد برنامج النقاط', brand: 'هوية المحل', whatsapp: 'واتساب', reports: 'التقارير', security: 'الأمان' };
+var GROUPS = { program: 'قواعد برنامج النقاط', birthday: '🎂 عروض أعياد الميلاد', brand: 'هوية المحل', whatsapp: 'واتساب', reports: 'التقارير', security: 'الأمان' };
 function viewSettings(v) {
   call('getSettings').then(function (r) {
     var html = '<div class="card"><div class="toolbar"><h2 style="margin:0;flex:1">الإعدادات</h2><button class="btn sm" id="stSave" type="button">حفظ الإعدادات</button></div>' +
@@ -1274,6 +1350,7 @@ function viewSettings(v) {
       html += '<div class="setgroup"><h3>' + GROUPS[g] + '</h3>' + rows.map(function (s) {
         var input;
         if (s.type === 'bool') input = '<label class="switch"><input type="checkbox" data-key="' + esc(s.key) + '"' + (String(s.value) === 'true' ? ' checked' : '') + '><span></span></label>';
+        else if (s.type === 'choice') { var ch = (r.choices || {})[s.key] || {}; input = '<select data-key="' + esc(s.key) + '">' + Object.keys(ch).map(function (k) { return '<option value="' + esc(k) + '"' + (k === String(s.value) ? ' selected' : '') + '>' + esc(ch[k]) + '</option>'; }).join('') + '</select>'; }
         else if (s.type === 'longtext') input = '<textarea rows="5" data-key="' + esc(s.key) + '">' + esc(s.value) + '</textarea>';
         else input = '<input data-key="' + esc(s.key) + '" value="' + esc(s.value) + '"' + (s.type === 'number' ? ' inputmode="decimal" style="direction:ltr;max-width:200px"' : '') + '>';
         return '<div class="setrow"><div><label>' + esc(s.label) + '</label><div class="small muted">' + esc(s.description) + '</div></div><div>' + input + '</div></div>';
