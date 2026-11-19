@@ -846,22 +846,49 @@ function prepWa() {
       '<div class="kpi"><span>مستبعدون (بدون موافقة)</span><b>' + r.excluded.no_consent + '</b></div><div class="kpi"><span>مرسل اليوم / الحد المقترح</span><b>' + r.sent_today + ' / ' + r.daily_soft_limit + '</b></div></div>' +
       (!r.offer.live ? '<div class="err">تنبيه: العرض غير ساري حالياً (مجدول أو منتهي).</div>' : '') +
       (r.sent_today >= r.daily_soft_limit ? '<div class="err">تجاوزت الحد اليومي المقترح. الإرسال الكثيف قد يعرّض رقمك للحظر من واتساب.</div>' : '') +
+      (r.recipients.length ? '<div class="card" style="margin-bottom:12px;border:2px solid #25D366"><h2>📤 إرسال للكل</h2>' +
+        '<p class="small muted">اضغط الزرار، واتساب هيفتح على العميل والرسالة جاهزة باسمه. دوس إرسال في واتساب وارجع هنا، الزرار هيكون جاهز على العميل اللي بعده. مش محتاج تختار حد.</p>' +
+        '<a class="btn wa" id="waNext" target="_blank" rel="noopener" href="#" style="font-size:16px;padding:14px"></a>' +
+        '<div class="small muted" id="waNextInfo" style="margin-top:8px;text-align:center"></div></div>' +
+        '<details class="card" style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:700">📢 أو: رسالة واحدة لقائمة البث في واتساب بيزنس</summary>' +
+        '<p class="small muted" style="margin-top:8px">في واتساب بيزنس: القائمة ⋮ ← بث جديد ← اختار العملاء ← الصق الرسالة دي ← إرسال. بتوصل لكل اللي في القائمة مرة واحدة، بس بتوصل بس للعملاء اللي مسجلين رقم المحل عندهم، والرسالة مش بتبقى باسم كل عميل.</p>' +
+        '<textarea id="waBc" rows="7" readonly></textarea><button class="btn ghost sm" id="waBcCopy" type="button" style="margin-top:6px">نسخ الرسالة</button></details>' : '') +
       (r.recipients.length ? r.recipients.map(function (x, i) {
         return '<div class="recip" id="rc' + i + '"><div style="min-width:0;flex:1"><b>' + esc(x.name) + '</b> <span class="small muted">' + esc(x.member_no) + ' · ' + esc(x.phone) + '</span><div class="msg">' + esc(x.message) + '</div>' +
           '<div class="small" data-st="' + i + '">' + (x.sent_at ? '✓ أُرسل ' + d(x.sent_at, 1) + ' بواسطة ' + esc(x.sent_by) : '') + '</div></div>' +
           '<div style="display:flex;flex-direction:column;gap:6px"><a class="btn wa sm" target="_blank" rel="noopener" href="' + esc(x.link) + '" data-send="' + i + '">' + ICONS.wa + ' إرسال</a>' +
           '<button class="btn ghost sm" type="button" data-undo="' + i + '"' + (x.sent_at ? '' : ' style="display:none"') + '>تراجع</button></div></div>';
       }).join('') : '<div class="empty">لا يوجد عملاء مستهدفون وموافقون لهذا العرض</div>');
+    var markSent = function (i) {
+      var x = r.recipients[i];
+      x.sent_at = x.sent_at || 'pending';
+      return call('waMark', { customer_id: x.customer_id, offer_id: id, status: 'sent', message: x.message, message_type: 'offer' }).then(function () {
+        x.sent_at = new Date().toISOString();
+        $('[data-st="' + i + '"]').textContent = '✓ تم تسجيل الإرسال';
+        $('[data-undo="' + i + '"]').style.display = '';
+        $('#waSentN').textContent = r.recipients.filter(function (y) { return y.sent_at; }).length;
+        updateNext();
+      }).catch(function (e) { x.sent_at = null; updateNext(); toast(e.message, true); });
+    };
+    var nextIdx = function () { for (var i = 0; i < r.recipients.length; i++) if (!r.recipients[i].sent_at) return i; return -1; };
+    var updateNext = function () {
+      var btn = $('#waNext'); if (!btn) return;
+      var i = nextIdx(), total = r.recipients.length, done = r.recipients.filter(function (y) { return y.sent_at; }).length;
+      if (i < 0) { btn.innerHTML = '✓ تم الإرسال للكل'; btn.removeAttribute('href'); btn.style.opacity = '.6'; btn.style.pointerEvents = 'none'; $('#waNextInfo').textContent = 'اتبعت لـ ' + done + ' من ' + total + ' عميل'; return; }
+      var x = r.recipients[i];
+      btn.href = x.link; btn.dataset.idx = i; btn.style.opacity = ''; btn.style.pointerEvents = '';
+      btn.innerHTML = ICONS.wa + ' ابعت لـ ' + esc(x.name) + ' (' + (done + 1) + ' من ' + total + ')';
+      $('#waNextInfo').textContent = 'فاضل ' + (total - done) + ' عميل';
+    };
+    if ($('#waNext')) {
+      $('#waNext').addEventListener('click', function () { var i = Number(this.dataset.idx); if (i >= 0 && !r.recipients[i].sent_at) markSent(i); });
+      $('#waBc').value = '🎁 ' + r.offer.title + (r.offer.description ? '\n' + r.offer.description : '') + (r.offer.end_date ? '\n\n⏳ العرض ساري حتى ' + r.offer.end_date : '') +
+        '\n\nسجّل أو افتح كارتك واعرف رصيد نقاطك:\n' + r.base_url + '\n\n' + r.shop + ' – ' + r.shop_phone + '\nلإيقاف العروض ابعت كلمة "إيقاف".';
+      $('#waBcCopy').onclick = function () { copyText($('#waBc').value).then(function () { toast('تم النسخ ✓'); }); };
+      updateNext();
+    }
     $all('[data-send]', box).forEach(function (a) {
-      a.addEventListener('click', function () {
-        var x = r.recipients[a.dataset.send];
-        call('waMark', { customer_id: x.customer_id, offer_id: id, status: 'sent', message: x.message, message_type: 'offer' }).then(function () {
-          x.sent_at = new Date().toISOString();
-          $('[data-st="' + a.dataset.send + '"]').textContent = '✓ تم تسجيل الإرسال';
-          $('[data-undo="' + a.dataset.send + '"]').style.display = '';
-          $('#waSentN').textContent = r.recipients.filter(function (y) { return y.sent_at; }).length;
-        }).catch(function (e) { toast(e.message, true); });
-      });
+      a.addEventListener('click', function () { markSent(Number(a.dataset.send)); });
     });
     $all('[data-undo]', box).forEach(function (b) {
       b.onclick = function () {
@@ -869,6 +896,7 @@ function prepWa() {
         call('waMark', { customer_id: x.customer_id, offer_id: id, status: 'cancelled' }).then(function () {
           x.sent_at = null; $('[data-st="' + b.dataset.undo + '"]').textContent = ''; b.style.display = 'none';
           $('#waSentN').textContent = r.recipients.filter(function (y) { return y.sent_at; }).length;
+          updateNext();
         }).catch(function (e) { toast(e.message, true); });
       };
     });
