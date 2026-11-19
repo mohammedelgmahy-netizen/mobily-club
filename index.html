@@ -19,7 +19,7 @@
   var params = {}; new URLSearchParams(location.search).forEach(function(v,k){ params[k]=v; });
   var base = location.href.split('#')[0].split('?')[0];
   function fail(){ document.getElementById('m').innerHTML = 'تعذر الاتصال. تأكد من الإنترنت ثم <a href="" style="color:#22D3EE">أعد المحاولة</a>'; }
-  var V = {"Register":"05672047aa","Card":"201081b519","Unsub":"711cce9282","Message":"851e768df7","Admin":"2cc2584f0e"};
+  var V = {"Register":"05672047aa","Card":"201081b519","Unsub":"711cce9282","Message":"851e768df7","Admin":"cb61146f99"};
   var getPage = function(n){ return fetch(base.replace(/[^/]*$/, '') + 'pages/' + n + '.html?v=' + V[n]).then(function(r){ if (!r.ok) throw new Error('page'); return r.text(); }); };
   var guess = params.p === 'admin' ? 'Admin' : params.p === 'unsub' ? 'Unsub' : params.t ? 'Card' : 'Register';
   var early = getPage(guess); early.catch(function(){});
