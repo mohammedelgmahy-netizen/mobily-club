@@ -5,13 +5,18 @@
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-512.png"><script>
 window.MC_FUNCTION_URL = "https://lhamdnaxioxqptkylvkg.supabase.co/functions/v1/mobily?forceFunctionRegion=ap-south-1";
+window.__mcPost = function(body){
+  var url = window.MC_FUNCTION_URL;
+  var send = function(ct){ return fetch(url, { method: 'POST', headers: {'Content-Type': ct}, body: body }).then(function(r){ if (r.status >= 400 && r.status !== 500) throw new Error('ct'); return r.json(); }); };
+  if (window.__mcJson) return send('application/json');
+  return send('text/plain;charset=UTF-8').catch(function(){ window.__mcJson = true; return send('application/json'); });
+};
 (function(){
   function runner(ok, fail){
     var base = { withSuccessHandler: function(f){ return runner(f, fail); }, withFailureHandler: function(f){ return runner(ok, f); } };
     return new Proxy(base, { get: function(t, p){ if (p in t) return t[p]; return function(){
       var args = Array.prototype.slice.call(arguments);
-      fetch(window.MC_FUNCTION_URL, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ fn: p, args: args }) })
-        .then(function(r){ return r.json(); })
+      window.__mcPost(JSON.stringify({ fn: p, args: args }))
         .then(function(j){ if (j.error) { fail && fail(new Error(j.error)); } else { ok && ok(j.result); } })
         .catch(function(e){ fail && fail(new Error('تعذر الاتصال بالخادم، تأكد من الإنترنت')); });
     }; } });
