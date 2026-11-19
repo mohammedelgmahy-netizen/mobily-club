@@ -182,6 +182,20 @@ body.admin .pos{color:#059669}body.admin .neg{color:#DC2626}
 .grid{display:grid;gap:12px}
 .kpis{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
 .kpi{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow)}
+.kpi-go{cursor:pointer;position:relative;transition:transform .12s,border-color .12s}
+.kpi-go:hover,.kpi-go:active{border-color:#0891B2;transform:translateY(-1px)}
+.kpi-arrow{font-style:normal;color:#0891B2;font-weight:800;font-size:18px;position:absolute;left:12px;top:8px}
+h2 .kpi-arrow{position:static;font-size:16px}
+.h-go{cursor:pointer}
+.rep-ranges{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;color:inherit}
+.chip.on{background:#2563EB;border-color:#2563EB;color:#fff}
+.bars{display:flex;flex-direction:column;gap:7px;max-height:420px;overflow:auto}
+.bar-row{display:grid;grid-template-columns:92px 1fr auto;align-items:center;gap:8px;font-size:12.5px}
+.bar-l{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-t{background:#EEF2F7;border-radius:6px;height:12px;overflow:hidden}
+.bar-t i{display:block;height:100%;background:linear-gradient(90deg,#2563EB,#22D3EE);border-radius:6px}
+.bar-v{font-family:'Inter',sans-serif;font-size:12.5px;white-space:nowrap}
 .kpi span{font-size:12.5px;color:var(--muted);font-weight:700}
 .kpi b{display:block;font-family:'Inter',sans-serif;font-size:24px;font-weight:800;margin-top:2px}
 .two{grid-template-columns:1fr}
@@ -357,7 +371,7 @@ function waContactLink(settings, text) {
 /* ================= MOBILY CLUB — لوحة الإدارة ================= */
 var SESSION = store('mc_admin_sess') || '';
 var ME = null, PERMS = [], META = {}, PS = BOOT.settings;
-var CUR = 'dashboard';
+var CUR = 'dashboard', GO_OPT = {};
 
 var TYPE_AR = { EARN: 'نقاط شراء', REDEEM: 'استبدال', ADJUST_ADD: 'إضافة يدوية', ADJUST_SUB: 'خصم يدوي', REVERSAL: 'إلغاء فاتورة', REDEEM_REVERSAL: 'استرجاع استبدال', EXPIRE: 'انتهاء صلاحية' };
 var OFFER_STATUS = { live: ['ساري', 'green'], scheduled: ['مجدول', 'gold'], ended: ['منتهي', 'gray'], stopped: ['موقوف', 'red'] };
@@ -427,20 +441,24 @@ function boot() {
 }
 
 var PAGES = [
-  ['dashboard', 'لوحة المؤشرات', 'dashboard', '📊', '#0891B2'], ['sales', 'تسجيل بيع / استبدال', 'sales', '🧾', '#16A34A'], ['customers', 'العملاء', 'customers_view', '👥', '#2563EB'],
+  ['dashboard', 'لوحة المؤشرات', 'dashboard', '📊', '#0891B2'], ['reports', 'التقارير', 'dashboard', '📈', '#2563EB'], ['sales', 'تسجيل بيع / استبدال', 'sales', '🧾', '#16A34A'], ['customers', 'العملاء', 'customers_view', '👥', '#2563EB'],
   ['offers', 'العروض', 'offers_manage', '🎁', '#DB2777'], ['whatsapp', 'واتساب', 'whatsapp', '💬', '#059669'], ['ledger', 'سجل النقاط', 'customers_view', '⭐', '#D97706'],
   ['settings', 'الإعدادات', 'settings', '⚙️', '#475569'], ['users', 'الموظفون', 'users_manage', '🧑‍💼', '#7C3AED'], ['activity', 'سجل العمليات', 'audit', '📋', '#0F766E'], ['qr', 'QR المحل', null, '🔳', '#0B1222']
 ];
+function pageOk(p) {
+  if (p[0] === 'reports' && ((META && META.features) || []).indexOf('reports') < 0) return false;
+  return !p[2] || can(p[2]);
+}
 function buildNav() {
-  $('#nav').innerHTML = PAGES.filter(function (p) { return !p[2] || can(p[2]); })
+  $('#nav').innerHTML = PAGES.filter(pageOk)
     .map(function (p) { return '<button type="button" data-p="' + p[0] + '" style="--c:' + p[4] + '"><i class="nav-ic">' + p[3] + '</i><span>' + p[1] + '</span></button>'; }).join('');
   $all('#nav button').forEach(function (b) { b.onclick = function () { go(b.dataset.p); }; });
 }
-function go(p) {
-  stopScan(); CUR = p;
+function go(p, opt) {
+  stopScan(); CUR = p; GO_OPT = opt || {};
   $all('#nav button').forEach(function (b) { b.classList.toggle('on', b.dataset.p === p); });
   var v = $('#view'); loading(v); window.scrollTo(0, 0);
-  ({ dashboard: viewDashboard, sales: viewSales, customers: viewCustomers, offers: viewOffers, whatsapp: viewWhatsApp,
+  ({ dashboard: viewDashboard, reports: viewReports, sales: viewSales, customers: viewCustomers, offers: viewOffers, whatsapp: viewWhatsApp,
      ledger: viewLedger, settings: viewSettings, users: viewUsers, activity: viewActivity, qr: viewQR }[p] || viewDashboard)(v);
 }
 
@@ -448,22 +466,112 @@ function go(p) {
 function viewDashboard(v) {
   call('dashboard').then(function (s) {
     var k = [
-      ['إجمالي العملاء', fmtNum(s.customers_total)], ['عملاء جدد (' + s.new_days + ' يوم)', fmtNum(s.customers_new)],
-      ['موافقون على واتساب', fmtNum(s.customers_opted_in)], ['غير نشطين (' + s.inactive_days + ' يوم)', fmtNum(s.customers_inactive)],
-      ['النقاط المكتسبة', fmtNum(s.points_earned)], ['النقاط المستخدمة', fmtNum(s.points_used)], ['رصيد النقاط القائم', fmtNum(s.points_outstanding)],
-      ['عمليات الشراء', fmtNum(s.purchases_count)], ['قيمة المبيعات المسجلة', money(s.sales_total)], ['إجمالي خصومات المكافآت', money(s.discounts_total)],
-      ['مبيعات آخر 30 يوم', money(s.sales_30_total)], ['عمليات آخر 30 يوم', fmtNum(s.sales_30_count)]
+      ['إجمالي العملاء', fmtNum(s.customers_total), 'customers'], ['عملاء جدد (' + s.new_days + ' يوم)', fmtNum(s.customers_new), 'customers'],
+      ['موافقون على واتساب', fmtNum(s.customers_opted_in), 'whatsapp'], ['غير نشطين (' + s.inactive_days + ' يوم)', fmtNum(s.customers_inactive), 'customers'],
+      ['النقاط المكتسبة', fmtNum(s.points_earned), 'ledger', { type: 'EARN' }], ['النقاط المستخدمة', fmtNum(s.points_used), 'ledger', { type: 'REDEEM' }], ['رصيد النقاط القائم', fmtNum(s.points_outstanding), 'ledger'],
+      ['عمليات الشراء', fmtNum(s.purchases_count), 'reports', { range: 'all' }], ['قيمة المبيعات المسجلة', money(s.sales_total), 'reports', { range: 'all' }], ['إجمالي خصومات المكافآت', money(s.discounts_total), 'reports', { range: 'all' }],
+      ['مبيعات آخر 30 يوم', money(s.sales_30_total), 'reports', { range: '30' }], ['عمليات آخر 30 يوم', fmtNum(s.sales_30_count), 'reports', { range: '30' }]
     ];
-    v.innerHTML = '<div class="grid kpis">' + k.map(function (x) { return '<div class="kpi"><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div>' +
+    var okPage = function (pg) { var x = PAGES.filter(function (q) { return q[0] === pg; })[0]; return x && pageOk(x); };
+    v.innerHTML = '<div class="grid kpis">' + k.map(function (x, i) { var on = okPage(x[2]); return '<div class="kpi' + (on ? ' kpi-go' : '') + '"' + (on ? ' data-k="' + i + '" role="button" tabindex="0"' : '') + '><span>' + x[0] + '</span><b>' + x[1] + '</b>' + (on ? '<i class="kpi-arrow">‹</i>' : '') + '</div>'; }).join('') + '</div>' +
       '<div class="grid two" style="margin-top:12px">' +
       '<div class="card"><h2>الأكثر نشاطاً (آخر 30 يوم)</h2>' + custTable(s.top_active) + '</div>' +
       '<div class="card"><h2>الأعلى شراءً (كل الوقت)</h2>' + custTable(s.top_all_time) + '</div>' +
-      '<div class="card"><h2>أحدث العمليات</h2>' + (s.recent.length ? '<div class="tblwrap"><table class="tbl"><tr><th>التاريخ</th><th>العميل</th><th>النوع</th><th>نقاط</th><th>الموظف</th></tr>' +
+      '<div class="card"><h2' + (okPage('ledger') ? ' class="h-go" data-go="ledger"' : '') + '>أحدث العمليات' + (okPage('ledger') ? ' <i class="kpi-arrow">‹</i>' : '') + '</h2>' + (s.recent.length ? '<div class="tblwrap"><table class="tbl"><tr><th>التاريخ</th><th>العميل</th><th>النوع</th><th>نقاط</th><th>الموظف</th></tr>' +
         s.recent.map(function (r) { return '<tr><td>' + d(r.created_at, 1) + '</td><td>' + esc(r.name) + ' <span class="muted small">' + esc(r.member_no) + '</span></td><td>' + esc(TYPE_AR[r.type] || r.type) + '</td><td class="' + (r.points >= 0 ? 'pos' : 'neg') + '">' + r.points + '</td><td>' + esc(r.employee) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="empty">لا توجد عمليات بعد</div>') + '</div>' +
-      '<div class="card"><h2>العروض النشطة</h2>' + (s.active_offers.length ? s.active_offers.map(function (o) { return '<div class="recip"><b>' + esc(o.title) + '</b><span class="small muted">' + (o.end_date ? 'حتى ' + d(o.end_date) : 'مفتوح') + '</span></div>'; }).join('') : '<div class="empty">لا توجد عروض نشطة</div>') + '</div>' +
+      '<div class="card"><h2' + (okPage('offers') ? ' class="h-go" data-go="offers"' : '') + '>العروض النشطة' + (okPage('offers') ? ' <i class="kpi-arrow">‹</i>' : '') + '</h2>' + (s.active_offers.length ? s.active_offers.map(function (o) { return '<div class="recip"><b>' + esc(o.title) + '</b><span class="small muted">' + (o.end_date ? 'حتى ' + d(o.end_date) : 'مفتوح') + '</span></div>'; }).join('') : '<div class="empty">لا توجد عروض نشطة</div>') + '</div>' +
       '</div>';
     $all('[data-cid]', v).forEach(function (tr) { tr.onclick = function () { openCustomer(tr.dataset.cid); }; });
+    $all('[data-k]', v).forEach(function (el) {
+      var x = k[Number(el.dataset.k)];
+      el.onclick = function () { go(x[2], x[3]); };
+      el.onkeydown = function (e) { if (e.key === 'Enter') go(x[2], x[3]); };
+    });
+    $all('[data-go]', v).forEach(function (el) { el.onclick = function () { go(el.dataset.go); }; });
   }).catch(function (e) { v.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+}
+
+/* ---------------- التقارير ---------------- */
+function dayKey(dt) { var z = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); }
+function rangeDates(r) {
+  var t = new Date(), to = dayKey(t), f = new Date(t);
+  if (r === 'today') return { from: to, to: to };
+  if (r === '7') { f.setDate(f.getDate() - 6); return { from: dayKey(f), to: to }; }
+  if (r === '30') { f.setDate(f.getDate() - 29); return { from: dayKey(f), to: to }; }
+  if (r === 'month') return { from: to.slice(0, 8) + '01', to: to };
+  if (r === 'lastmonth') { var a = new Date(t.getFullYear(), t.getMonth() - 1, 1), b = new Date(t.getFullYear(), t.getMonth(), 0); return { from: dayKey(a), to: dayKey(b) }; }
+  return { from: '', to: '' };
+}
+var REP_RANGES = [['today', 'النهارده'], ['7', 'آخر 7 أيام'], ['30', 'آخر 30 يوم'], ['month', 'الشهر ده'], ['lastmonth', 'الشهر اللي فات'], ['all', 'كل الوقت']];
+function viewReports(v) {
+  var cur = GO_OPT.range || '30';
+  v.innerHTML = '<div class="card"><h2>📈 التقارير</h2><div class="rep-ranges" id="repR">' +
+    REP_RANGES.map(function (r) { return '<button type="button" class="chip" data-r="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</div>' +
+    '<div class="row" style="margin-top:10px"><div><label>من</label><input type="date" id="repFrom"></div><div><label>إلى</label><input type="date" id="repTo"></div></div>' +
+    '<button class="btn sm" id="repGo" type="button" style="margin-top:8px">عرض</button></div><div id="repBox"></div>';
+  var load = function (from, to) {
+    $('#repFrom').value = from; $('#repTo').value = to;
+    var box = $('#repBox'); loading(box);
+    call('reports', { from: from, to: to }).then(function (r) { renderReport(box, r); })
+      .catch(function (e) { box.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  };
+  var pick = function (key) {
+    cur = key;
+    $all('#repR .chip').forEach(function (b) { b.classList.toggle('on', b.dataset.r === key); });
+    var x = rangeDates(key); load(x.from, x.to);
+  };
+  $all('#repR .chip').forEach(function (b) { b.onclick = function () { pick(b.dataset.r); }; });
+  $('#repGo').onclick = function () {
+    var f = $('#repFrom').value, t = $('#repTo').value;
+    if (f && t && f > t) return toast('تاريخ البداية بعد تاريخ النهاية', true);
+    $all('#repR .chip').forEach(function (b) { b.classList.remove('on'); });
+    load(f, t);
+  };
+  pick(cur);
+}
+function sg(n, sign) { return n ? sign + fmtNum(n) : '0'; }
+function bars(rows, label, val, fmt) {
+  var max = Math.max.apply(null, rows.map(val).concat([0]));
+  if (!rows.length || !max) return '<div class="empty">لا توجد بيانات في الفترة دي</div>';
+  return '<div class="bars">' + rows.map(function (x) {
+    var w = Math.max(2, Math.round(val(x) / max * 100));
+    return '<div class="bar-row"><span class="bar-l">' + label(x) + '</span><span class="bar-t"><i style="width:' + w + '%"></i></span><b class="bar-v">' + fmt(val(x)) + '</b></div>';
+  }).join('') + '</div>';
+}
+function renderReport(box, r) {
+  var days = r.days, byMonth = days.length > 31;
+  if (byMonth) {
+    var m = {};
+    days.forEach(function (x) { var k = x.day.slice(0, 7); var y = m[k] || (m[k] = { day: k, sales: 0, count: 0, new_customers: 0 }); y.sales += x.sales; y.count += x.count; y.new_customers += x.new_customers; });
+    days = Object.keys(m).sort().map(function (k) { return m[k]; });
+  }
+  var lbl = function (x) { return byMonth ? esc(x.day) : esc(fmtDate(x.day + 'T12:00:00', 'ar')); };
+  var period = r.from || r.to ? (r.from ? d(r.from + 'T12:00:00') : '…') + ' ← ' + (r.to ? d(r.to + 'T12:00:00') : '…') : 'كل الوقت';
+  var k = [
+    ['💰 صافي المبيعات', money(r.sales_total)], ['🧾 عدد الفواتير', fmtNum(r.sales_count)], ['📊 متوسط الفاتورة', money(r.avg_invoice)],
+    ['🏷️ خصومات المكافآت', money(r.discounts_total)], ['🆕 عملاء جدد', fmtNum(r.new_customers)], ['🛍️ عملاء اشتروا', fmtNum(r.buyers)],
+    ['🔁 عملاء رجعوا يشتروا', fmtNum(r.returning_buyers)], ['⭐ نقاط اتكسبت', fmtNum(r.points_earned)], ['🎁 نقاط اتصرفت', fmtNum(r.points_used)],
+    ['✅ مكافآت اتصرفت', fmtNum(r.redemptions_count)], ['❌ فواتير اتلغت', fmtNum(r.voided_count)], ['💬 وافقوا على واتساب (جدد)', fmtNum(r.new_opted_in)]
+  ];
+  box.innerHTML = '<p class="small muted" style="margin:12px 4px">الفترة: ' + period + '</p>' +
+    '<div class="grid kpis">' + k.map(function (x) { return '<div class="kpi"><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div>' +
+    '<div class="grid two" style="margin-top:12px">' +
+    '<div class="card"><h2>المبيعات ' + (byMonth ? 'بالشهر' : 'باليوم') + '</h2>' + bars(days.slice().reverse(), lbl, function (x) { return x.sales; }, money) + '</div>' +
+    '<div class="card"><h2>عدد الفواتير ' + (byMonth ? 'بالشهر' : 'باليوم') + '</h2>' + bars(days.slice().reverse(), lbl, function (x) { return x.count; }, fmtNum) + '</div>' +
+    '<div class="card"><h2>العملاء الجدد ' + (byMonth ? 'بالشهر' : 'باليوم') + '</h2>' + bars(days.slice().reverse(), lbl, function (x) { return x.new_customers; }, fmtNum) + '</div>' +
+    '<div class="card"><h2>المبيعات حسب الموظف</h2>' + (r.by_employee.length ? '<div class="tblwrap"><table class="tbl"><tr><th>الموظف</th><th>فواتير</th><th>المبيعات</th></tr>' +
+      r.by_employee.map(function (e) { return '<tr><td>' + esc(e.name) + '</td><td>' + fmtNum(e.count) + '</td><td>' + money(e.total) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="empty">لا توجد بيانات في الفترة دي</div>') + '</div>' +
+    '<div class="card"><h2>أعلى العملاء شراءً في الفترة</h2>' + custTable(r.top_customers) + '</div>' +
+    '<div class="card"><h2>حركة النقاط</h2><div class="tblwrap"><table class="tbl">' +
+      '<tr><td>نقاط شراء</td><td class="pos">' + sg(r.points_earned, '+') + '</td></tr><tr><td>استبدال</td><td class="neg">' + sg(r.points_used, '-') + '</td></tr>' +
+      '<tr><td>إضافة يدوية</td><td class="pos">' + sg(r.points_adjust_add, '+') + '</td></tr><tr><td>خصم يدوي</td><td class="neg">' + sg(r.points_adjust_sub, '-') + '</td></tr>' +
+      '<tr><td>انتهاء صلاحية</td><td class="neg">' + sg(r.points_expired, '-') + '</td></tr></table></div></div>' +
+    '<div class="card"><h2>رسائل واتساب اتبعتت</h2>' + (r.whatsapp.length ? '<div class="tblwrap"><table class="tbl"><tr><th>الرسالة</th><th>العدد</th></tr>' +
+      r.whatsapp.map(function (w) { return '<tr><td>' + esc(w.name) + '</td><td>' + fmtNum(w.count) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="empty">لا توجد رسائل في الفترة دي</div>') + '</div>' +
+    '<div class="card"><h2>العملاء حسب المستوى (الكل)</h2>' + (r.tiers.length ? '<div class="tblwrap"><table class="tbl"><tr><th>المستوى</th><th>العدد</th></tr>' +
+      r.tiers.map(function (t) { return '<tr><td>' + esc(t.tier) + '</td><td>' + fmtNum(t.count) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="empty">لا توجد بيانات</div>') + '</div>' +
+    '</div>';
+  $all('[data-cid]', box).forEach(function (tr) { tr.onclick = function () { openCustomer(tr.dataset.cid); }; });
 }
 function custTable(rows) {
   if (!rows.length) return '<div class="empty">لا توجد بيانات بعد</div>';
@@ -921,6 +1029,7 @@ function viewLedger(v) {
       }).join('') + '</table></div>' : '<div class="empty">لا توجد حركات</div>';
     }).catch(function (e) { box.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
   };
+  if (GO_OPT.type) $('#lgType').value = GO_OPT.type;
   $('#lgType').onchange = load; load();
 }
 
