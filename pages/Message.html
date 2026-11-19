@@ -44,11 +44,13 @@ a{color:var(--brand)}
 .brandbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
 .logo{display:flex;align-items:center;gap:10px;font-family:'Inter',sans-serif;font-weight:800;letter-spacing:.5px}
 .logo .mark{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;
-  background:#fff;box-shadow:0 8px 24px -10px rgba(255,255,255,.35);overflow:hidden}
+  background:transparent;overflow:hidden}
 .logo .mark img{width:40px;height:40px;display:block}
 .logo img{height:38px;border-radius:10px}
-.hero-logo{background:#fff;border-radius:22px;padding:14px 18px;max-width:230px;margin:2px auto 18px;box-shadow:0 14px 40px -16px rgba(255,255,255,.35)}
-.hero-logo.sm{max-width:150px;padding:6px 10px;border-radius:16px;margin-bottom:14px}
+.hero-logo{background:transparent;padding:0;max-width:230px;margin:2px auto 18px}
+.hero-logo.wide{max-width:300px;margin:6px auto 18px}
+.hero-logo.sm{max-width:150px;margin-bottom:14px}
+.hero-logo.wide.sm{max-width:240px}
 .hero-logo img{display:block;width:100%;height:auto}
 .logo small{display:block;font-size:10px;letter-spacing:5px;font-weight:700;margin-top:-2px;background:linear-gradient(90deg,#F5C542,#E0A526);-webkit-background-clip:text;background-clip:text;color:transparent}
 .chip-btn{border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
@@ -84,8 +86,8 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--brand);flex:0 0 a
 .lcard::after{content:"";position:absolute;left:-30px;bottom:-60px;width:220px;height:220px;border-radius:50%;
   border:28px solid rgba(34,211,238,.07)}
 .lcard .top{display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:1}
-.lcard .brand{font-family:'Inter',sans-serif;font-weight:800;font-size:20px;letter-spacing:1.5px;direction:ltr;display:flex;align-items:center;gap:9px}
-.lcard .brand .bm{width:38px;height:38px;flex:0 0 38px;border-radius:10px;background:#fff;overflow:hidden;display:block}
+.lcard .brand{font-family:'Inter','Cairo',sans-serif;font-weight:800;font-size:18px;letter-spacing:0;direction:ltr;display:flex;align-items:center;gap:9px}
+.lcard .brand .bm{width:38px;height:38px;flex:0 0 38px;background:transparent;overflow:hidden;display:block}
 .lcard .brand .bm img{width:38px;height:38px;display:block}
 .lcard .brand span{display:block;font-size:9.5px;letter-spacing:4px;color:#F5C542;font-weight:700}
 .lcard .tier{font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);letter-spacing:.5px}
@@ -148,7 +150,7 @@ details.howto summary{cursor:pointer;font-weight:700}
 </head>
 <body>
 <div class="wrap">
-  <div class="brandbar"><div class="logo"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg></div><div style="direction:ltr">MOBILY<small>CLUB</small></div></div></div>
+  <div class="brandbar"><div class="logo"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg></div><div style="direction:ltr">موبايلي - Mobily</div></div></div>
   <div class="panel" style="text-align:center;padding:30px 18px">
     <h2 id="t"></h2>
     <p class="muted" id="m"></p>
