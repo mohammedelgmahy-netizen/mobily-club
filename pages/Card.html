@@ -410,8 +410,17 @@ $('#waToggle').onchange = function () {
 };
 $('#copyBtn').onclick = function () { copyText(D.card_url).then(function () { $('#copyBtn').textContent = tx().copied; }); };
 $('#shareBtn').onclick = function () {
-  if (navigator.share) navigator.share({ title: D.settings.program_name, url: D.card_url }).catch(function () { });
-  else copyText(D.card_url).then(function () { $('#shareBtn').textContent = tx().copied; });
+  var title = D.settings.program_name, text = title + '\n' + D.card_url;
+  var plain = function () {
+    if (navigator.share) return navigator.share({ title: title, url: D.card_url }).catch(function () { });
+    copyText(D.card_url).then(function () { $('#shareBtn').textContent = tx().copied; });
+  };
+  if (!navigator.share || !window.File || !navigator.canShare) return plain();
+  fetch('share-logo.png').then(function (r) { return r.blob(); }).then(function (b) {
+    var f = new File([b], 'mobily.png', { type: 'image/png' });
+    if (!navigator.canShare({ files: [f] })) return plain();
+    return navigator.share({ files: [f], title: title, text: text }).catch(function () { });
+  }).catch(plain);
 };
 function alertBox(m) { $('#waMsg').textContent = m; }
 </script>
