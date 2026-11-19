@@ -412,5 +412,39 @@ $('#cardLoginForm').addEventListener('submit', function (ev) {
   }).catch(function (e) { err.textContent = e.message; err.classList.remove('hidden'); btn.disabled = false; });
 });
 </script>
+<script>
+(function(){
+  var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  if (standalone) return;
+  var bar = document.querySelector('.brandbar'); if (!bar) return;
+  var ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var b = document.createElement('button');
+  b.type = 'button'; b.id = 'installBtn'; b.className = 'chip-btn';
+  b.style.cssText = 'border-color:#22D3EE;color:#22D3EE;font-weight:700';
+  b.textContent = '⬇ تنزيل كأبلكيشن';
+  bar.insertBefore(b, bar.firstChild);
+  function tip(html){
+    var o = document.createElement('div');
+    o.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;padding:16px';
+    o.innerHTML = '<div dir="rtl" style="background:#0F172A;color:#fff;border:1px solid #22D3EE;border-radius:16px;padding:18px;max-width:420px;width:100%;font-size:16px;line-height:1.8;text-align:center">' + html + '<br><button type="button" style="margin-top:12px;background:#22D3EE;color:#060A14;border:0;border-radius:999px;padding:8px 26px;font:inherit;font-weight:700">تمام</button></div>';
+    o.onclick = function(){ o.remove(); };
+    document.body.appendChild(o);
+  }
+  b.onclick = function(){
+    var p = window.__mcInstallPrompt;
+    if (p) {
+      p.prompt();
+      p.userChoice.then(function(c){ if (c.outcome === 'accepted') b.remove(); });
+      window.__mcInstallPrompt = null;
+    } else if (ios) {
+      tip('اضغط زرار المشاركة <b>⬆</b> تحت في سفاري<br>وبعدين اختار <b>«إضافة إلى الشاشة الرئيسية»</b>');
+    } else {
+      tip('من التلات نقط <b>⋮</b> فوق في كروم<br>اختار <b>«تثبيت التطبيق»</b> أو <b>«إضافة إلى الشاشة الرئيسية»</b>');
+    }
+  };
+  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); window.__mcInstallPrompt = e; });
+  window.addEventListener('appinstalled', function(){ b.remove(); });
+})();
+</script>
 </body>
 </html>

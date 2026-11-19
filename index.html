@@ -16,12 +16,13 @@
 </head><body><div class="l"><div><div class="s"></div><div id="m">موبايلي - Mobily</div></div></div>
 <script>
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); window.__mcInstallPrompt = e; });
 (function(){
   var FN = "https://lhamdnaxioxqptkylvkg.supabase.co/functions/v1/mobily?forceFunctionRegion=ap-south-1";
   var params = {}; new URLSearchParams(location.search).forEach(function(v,k){ params[k]=v; });
   var base = location.href.split('#')[0].split('?')[0];
   function fail(){ document.getElementById('m').innerHTML = 'تعذر الاتصال. تأكد من الإنترنت ثم <a href="" style="color:#22D3EE">أعد المحاولة</a>'; }
-  var V = {"Register":"36141af9d8","Card":"0bc9be3336","Unsub":"f3af745d22","Message":"4d7ed8c675","Admin":"12985d4987"};
+  var V = {"Register":"0ce4317b4c","Card":"857b5c70a4","Unsub":"f3af745d22","Message":"4d7ed8c675","Admin":"12985d4987"};
   var getPage = function(n){ return fetch(base.replace(/[^/]*$/, '') + 'pages/' + n + '.html?v=' + V[n]).then(function(r){ if (!r.ok) throw new Error('page'); return r.text(); }); };
   var guess = params.p === 'admin' ? 'Admin' : params.p === 'unsub' ? 'Unsub' : params.t ? 'Card' : 'Register';
   var early = getPage(guess); early.catch(function(){});
