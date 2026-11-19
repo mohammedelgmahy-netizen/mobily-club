@@ -196,6 +196,13 @@ h2 .kpi-arrow{position:static;font-size:16px}
 .bar-t{background:#EEF2F7;border-radius:6px;height:12px;overflow:hidden}
 .bar-t i{display:block;height:100%;background:linear-gradient(90deg,#2563EB,#22D3EE);border-radius:6px}
 .bar-v{font-family:'Inter',sans-serif;font-size:12.5px;white-space:nowrap}
+.backbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.rep-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-top:10px}
+.rep-card{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:start;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;font:inherit;color:inherit;cursor:pointer;box-shadow:var(--shadow)}
+.rep-card:hover,.rep-card:active{border-color:#2563EB}
+.rep-card i{font-style:normal;font-size:24px}.rep-card b{font-size:15px}.rep-card span{font-size:12.5px;color:var(--muted)}
+.tbl th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+.tbl tr.tot td{background:#F8FAFC;border-top:2px solid var(--line)}
 .kpi span{font-size:12.5px;color:var(--muted);font-weight:700}
 .kpi b{display:block;font-family:'Inter',sans-serif;font-size:24px;font-weight:800;margin-top:2px}
 .two{grid-template-columns:1fr}
@@ -372,6 +379,8 @@ function waContactLink(settings, text) {
 var SESSION = store('mc_admin_sess') || '';
 var ME = null, PERMS = [], META = {}, PS = BOOT.settings;
 var CUR = 'dashboard', GO_OPT = {};
+var DASH_DAYS = { 'new': 30, inactive: 90, loaded: false };
+function hasFeature(f) { return ((META && META.features) || []).indexOf(f) >= 0; }
 
 var TYPE_AR = { EARN: 'نقاط شراء', REDEEM: 'استبدال', ADJUST_ADD: 'إضافة يدوية', ADJUST_SUB: 'خصم يدوي', REVERSAL: 'إلغاء فاتورة', REDEEM_REVERSAL: 'استرجاع استبدال', EXPIRE: 'انتهاء صلاحية' };
 var OFFER_STATUS = { live: ['ساري', 'green'], scheduled: ['مجدول', 'gold'], ended: ['منتهي', 'gray'], stopped: ['موقوف', 'red'] };
@@ -446,7 +455,6 @@ var PAGES = [
   ['settings', 'الإعدادات', 'settings', '⚙️', '#475569'], ['users', 'الموظفون', 'users_manage', '🧑‍💼', '#7C3AED'], ['activity', 'سجل العمليات', 'audit', '📋', '#0F766E'], ['qr', 'QR المحل', null, '🔳', '#0B1222']
 ];
 function pageOk(p) {
-  if (p[0] === 'reports' && ((META && META.features) || []).indexOf('reports') < 0) return false;
   return !p[2] || can(p[2]);
 }
 function buildNav() {
@@ -457,7 +465,12 @@ function buildNav() {
 function go(p, opt) {
   stopScan(); CUR = p; GO_OPT = opt || {};
   $all('#nav button').forEach(function (b) { b.classList.toggle('on', b.dataset.p === p); });
-  var v = $('#view'); loading(v); window.scrollTo(0, 0);
+  var outer = $('#view'); window.scrollTo(0, 0);
+  var back = GO_OPT.back;
+  outer.innerHTML = (back ? '<div class="backbar"><button type="button" class="btn ghost sm" id="backBtn">→ رجوع ل' + esc(back[1]) + '</button>' +
+    (GO_OPT.label ? '<span class="badge gold">' + esc(GO_OPT.label) + '</span>' : '') + '</div>' : '') + '<div id="viewIn"></div>';
+  if (back) $('#backBtn').onclick = function () { go(back[0], back[2]); };
+  var v = $('#viewIn'); loading(v);
   ({ dashboard: viewDashboard, reports: viewReports, sales: viewSales, customers: viewCustomers, offers: viewOffers, whatsapp: viewWhatsApp,
      ledger: viewLedger, settings: viewSettings, users: viewUsers, activity: viewActivity, qr: viewQR }[p] || viewDashboard)(v);
 }
@@ -466,14 +479,27 @@ function go(p, opt) {
 function viewDashboard(v) {
   call('dashboard').then(function (s) {
     var k = [
-      ['إجمالي العملاء', fmtNum(s.customers_total), 'customers'], ['عملاء جدد (' + s.new_days + ' يوم)', fmtNum(s.customers_new), 'customers'],
-      ['موافقون على واتساب', fmtNum(s.customers_opted_in), 'whatsapp'], ['غير نشطين (' + s.inactive_days + ' يوم)', fmtNum(s.customers_inactive), 'customers'],
-      ['النقاط المكتسبة', fmtNum(s.points_earned), 'ledger', { type: 'EARN' }], ['النقاط المستخدمة', fmtNum(s.points_used), 'ledger', { type: 'REDEEM' }], ['رصيد النقاط القائم', fmtNum(s.points_outstanding), 'ledger'],
-      ['عمليات الشراء', fmtNum(s.purchases_count), 'reports', { range: 'all' }], ['قيمة المبيعات المسجلة', money(s.sales_total), 'reports', { range: 'all' }], ['إجمالي خصومات المكافآت', money(s.discounts_total), 'reports', { range: 'all' }],
-      ['مبيعات آخر 30 يوم', money(s.sales_30_total), 'reports', { range: '30' }], ['عمليات آخر 30 يوم', fmtNum(s.sales_30_count), 'reports', { range: '30' }]
+      ['إجمالي العملاء', fmtNum(s.customers_total), 'customers', { filter: 'all' }],
+      ['عملاء جدد (' + s.new_days + ' يوم)', fmtNum(s.customers_new), 'customers', { filter: 'new' }],
+      ['موافقون على واتساب', fmtNum(s.customers_opted_in), 'customers', { filter: 'wa' }],
+      ['غير نشطين (' + s.inactive_days + ' يوم)', fmtNum(s.customers_inactive), 'customers', { filter: 'inactive' }],
+      ['النقاط المكتسبة', fmtNum(s.points_earned), 'ledger', { type: 'EARN' }],
+      ['النقاط المستخدمة', fmtNum(s.points_used), 'ledger', { type: 'REDEEM' }],
+      ['رصيد النقاط القائم', fmtNum(s.points_outstanding), 'customers', { filter: 'points' }],
+      ['عمليات الشراء', fmtNum(s.purchases_count), 'reports', { report: 'sales', range: 'all' }],
+      ['قيمة المبيعات المسجلة', money(s.sales_total), 'reports', { report: 'sales', range: 'all' }],
+      ['إجمالي خصومات المكافآت', money(s.discounts_total), 'reports', { report: 'redemptions', range: 'all' }],
+      ['مبيعات آخر 30 يوم', money(s.sales_30_total), 'reports', { report: 'sales', range: '30' }],
+      ['عمليات آخر 30 يوم', fmtNum(s.sales_30_count), 'reports', { report: 'sales', range: '30' }]
     ];
-    var okPage = function (pg) { var x = PAGES.filter(function (q) { return q[0] === pg; })[0]; return x && pageOk(x); };
-    v.innerHTML = '<div class="grid kpis">' + k.map(function (x, i) { var on = okPage(x[2]); return '<div class="kpi' + (on ? ' kpi-go' : '') + '"' + (on ? ' data-k="' + i + '" role="button" tabindex="0"' : '') + '><span>' + x[0] + '</span><b>' + x[1] + '</b>' + (on ? '<i class="kpi-arrow">‹</i>' : '') + '</div>'; }).join('') + '</div>' +
+    DASH_DAYS = { 'new': s.new_days, inactive: s.inactive_days, loaded: true };
+    var okPage = function (pg, o) {
+      var x = PAGES.filter(function (q) { return q[0] === pg; })[0];
+      if (!x || !pageOk(x)) return false;
+      if (pg === 'reports' && o && o.report) { var r = repById(o.report); return !!(r && repOk(r)); }
+      return true;
+    };
+    v.innerHTML = '<div class="grid kpis">' + k.map(function (x, i) { var on = okPage(x[2], x[3]); return '<div class="kpi' + (on ? ' kpi-go' : '') + '"' + (on ? ' data-k="' + i + '" role="button" tabindex="0"' : '') + '><span>' + x[0] + '</span><b>' + x[1] + '</b>' + (on ? '<i class="kpi-arrow">‹</i>' : '') + '</div>'; }).join('') + '</div>' +
       '<div class="grid two" style="margin-top:12px">' +
       '<div class="card"><h2>الأكثر نشاطاً (آخر 30 يوم)</h2>' + custTable(s.top_active) + '</div>' +
       '<div class="card"><h2>الأعلى شراءً (كل الوقت)</h2>' + custTable(s.top_all_time) + '</div>' +
@@ -484,10 +510,12 @@ function viewDashboard(v) {
     $all('[data-cid]', v).forEach(function (tr) { tr.onclick = function () { openCustomer(tr.dataset.cid); }; });
     $all('[data-k]', v).forEach(function (el) {
       var x = k[Number(el.dataset.k)];
-      el.onclick = function () { go(x[2], x[3]); };
-      el.onkeydown = function (e) { if (e.key === 'Enter') go(x[2], x[3]); };
+      var o = {}; Object.keys(x[3] || {}).forEach(function (kk) { o[kk] = x[3][kk]; });
+      o.back = ['dashboard', 'لوحة المؤشرات']; o.label = x[0];
+      el.onclick = function () { go(x[2], o); };
+      el.onkeydown = function (e) { if (e.key === 'Enter') go(x[2], o); };
     });
-    $all('[data-go]', v).forEach(function (el) { el.onclick = function () { go(el.dataset.go); }; });
+    $all('[data-go]', v).forEach(function (el) { el.onclick = function () { go(el.dataset.go, { back: ['dashboard', 'لوحة المؤشرات'] }); }; });
   }).catch(function (e) { v.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
 }
 
@@ -503,31 +531,209 @@ function rangeDates(r) {
   return { from: '', to: '' };
 }
 var REP_RANGES = [['today', 'النهارده'], ['7', 'آخر 7 أيام'], ['30', 'آخر 30 يوم'], ['month', 'الشهر ده'], ['lastmonth', 'الشهر اللي فات'], ['all', 'كل الوقت']];
+/* سجل التقارير: لإضافة تقرير جديد أضف عنصراً هنا فقط */
+var REPORTS = [
+  { id: 'summary', t: 'ملخص الفترة', ic: '📊', d: 'المبيعات والفواتير والعملاء والنقاط والموظفين في فترة تختارها', perm: 'dashboard', feat: 'reports', dates: true },
+  { id: 'sales', t: 'تقرير المبيعات (الفواتير)', ic: '🧾', d: 'كل فاتورة: العميل، القيمة، الخصم، الصافي، النقاط، الموظف', perm: 'dashboard', feat: 'reports', dates: true,
+    load: function (f) { return call('reports', { kind: 'sales', from: f.from, to: f.to }); },
+    sel: [{ k: 'status', l: 'الحالة', opts: [['valid', 'سارية'], ['void', 'ملغية'], ['', 'الكل']], test: function (r, v) { return r.status === v; } },
+          { k: 'employee', l: 'الموظف', dyn: 'employee' }],
+    cols: [{ k: 'created_at', l: 'التاريخ', date: 1 }, { k: 'invoice_no', l: 'الفاتورة' }, { k: 'name', l: 'العميل', sub: 'member_no' }, { k: 'amount', l: 'القيمة', money: 1, sum: 1 },
+           { k: 'discount', l: 'الخصم', money: 1, sum: 1 }, { k: 'net', l: 'الصافي', money: 1, sum: 1 }, { k: 'points', l: 'نقاط', num: 1, sum: 1 }, { k: 'employee', l: 'الموظف' },
+           { k: 'status', l: 'الحالة', map: { valid: 'سارية', 'void': 'ملغية' } }] },
+  { id: 'redemptions', t: 'تقرير المكافآت المستبدلة', ic: '🎁', d: 'كل استبدال نقاط: النقاط، نسبة الخصم، قيمة الخصم', perm: 'dashboard', feat: 'reports', dates: true,
+    load: function (f) { return call('reports', { kind: 'redemptions', from: f.from, to: f.to }); },
+    sel: [{ k: 'status', l: 'الحالة', opts: [['valid', 'سارية'], ['void', 'ملغية'], ['', 'الكل']], test: function (r, v) { return r.status === v; } }, { k: 'employee', l: 'الموظف', dyn: 'employee' }],
+    cols: [{ k: 'created_at', l: 'التاريخ', date: 1 }, { k: 'invoice_no', l: 'الفاتورة' }, { k: 'name', l: 'العميل', sub: 'member_no' }, { k: 'points', l: 'نقاط', num: 1, sum: 1 },
+           { k: 'percent', l: 'نسبة الخصم', pct: 1 }, { k: 'invoice_amount', l: 'قيمة الفاتورة', money: 1, sum: 1 }, { k: 'discount', l: 'الخصم', money: 1, sum: 1 }, { k: 'employee', l: 'الموظف' },
+           { k: 'status', l: 'الحالة', map: { valid: 'سارية', 'void': 'ملغية' } }] },
+  { id: 'balances', t: 'أرصدة نقاط العملاء', ic: '⭐', d: 'رصيد كل عميل وإجمالي مشترياته ومستواه', perm: 'customers_view',
+    load: function () { return call('searchCustomers', { q: '', limit: 100000 }); },
+    sel: [{ k: 'cst', l: 'حالة العضوية', opts: [['', 'الكل'], ['active', 'نشط'], ['suspended', 'موقوف']], test: function (r, v) { return v === 'active' ? r.status === 'active' : r.status !== 'active'; } },
+          { k: 'has', l: 'الرصيد', opts: [['', 'الكل'], ['pos', 'عندهم نقاط'], ['zero', 'رصيد صفر']], test: function (r, v) { return v === 'pos' ? r.points_balance > 0 : !(r.points_balance > 0); } },
+          { k: 'tier', l: 'المستوى', dyn: 'tier' }],
+    sort: ['points_balance', -1],
+    cols: [{ k: 'member_no', l: 'العضوية' }, { k: 'name', l: 'الاسم' }, { k: 'phone', l: 'الموبايل', ltr: 1 }, { k: 'points_balance', l: 'الرصيد', num: 1, sum: 1 },
+           { k: 'lifetime_points', l: 'نقاط مكتسبة كلها', num: 1, sum: 1 }, { k: 'total_spent', l: 'المشتريات', money: 1, sum: 1 }, { k: 'purchases_count', l: 'عدد الفواتير', num: 1, sum: 1 },
+           { k: 'tier', l: 'المستوى' }, { k: 'last_purchase_at', l: 'آخر شراء', date: 1 }, { k: 'status', l: 'الحالة', map: { active: 'نشط', suspended: 'موقوف' } }] },
+  { id: 'inactive', t: 'العملاء غير النشطين', ic: '⏰', d: 'العملاء اللي مشتروش من مدة تحددها بالأيام', perm: 'customers_view', days: true,
+    load: function () { return call('searchCustomers', { q: '', limit: 100000 }); },
+    pre: function (rows, f) {
+      var lim = isNaN(Number(f.days)) ? 90 : Number(f.days), now = Date.now();
+      return rows.filter(function (c) { var l = c.last_purchase_at || c.created_at; c.since = l ? Math.floor((now - new Date(l).getTime()) / 86400000) : 0; return c.status === 'active' && c.since >= lim; });
+    },
+    sort: ['since', -1],
+    cols: [{ k: 'member_no', l: 'العضوية' }, { k: 'name', l: 'الاسم' }, { k: 'phone', l: 'الموبايل', ltr: 1 }, { k: 'last_purchase_at', l: 'آخر شراء', date: 1 },
+           { k: 'since', l: 'أيام من آخر شراء', num: 1 }, { k: 'points_balance', l: 'الرصيد', num: 1, sum: 1 }, { k: 'total_spent', l: 'المشتريات', money: 1, sum: 1 },
+           { k: 'wa_opt_in', l: 'واتساب', map: { 'true': 'موافق', 'false': 'لا' } }] },
+  { id: 'newcust', t: 'العملاء الجدد', ic: '🆕', d: 'العملاء اللي اتسجلوا في الفترة', perm: 'customers_view', dates: true, dateKey: 'created_at',
+    load: function () { return call('searchCustomers', { q: '', limit: 100000 }); },
+    sel: [{ k: 'wa', l: 'واتساب', opts: [['', 'الكل'], ['1', 'موافق'], ['0', 'غير موافق']], test: function (r, v) { return !!r.wa_opt_in === (v === '1'); } }],
+    cols: [{ k: 'created_at', l: 'تاريخ التسجيل', date: 1 }, { k: 'member_no', l: 'العضوية' }, { k: 'name', l: 'الاسم' }, { k: 'phone', l: 'الموبايل', ltr: 1 },
+           { k: 'purchases_count', l: 'عدد الفواتير', num: 1, sum: 1 }, { k: 'total_spent', l: 'المشتريات', money: 1, sum: 1 }, { k: 'points_balance', l: 'الرصيد', num: 1 },
+           { k: 'wa_opt_in', l: 'واتساب', map: { 'true': 'موافق', 'false': 'لا' } }] },
+  { id: 'statement', t: 'كشف حركة نقاط عميل', ic: '📄', d: 'كل حركات نقاط عميل واحد والرصيد بعد كل حركة', perm: 'customers_view', dates: true, dateKey: 'created_at', customer: true,
+    load: function (f) { return call('ledger', { customer_id: f.customer_id, limit: 100000 }); },
+    sel: [{ k: 'type', l: 'النوع', dyn: 'type' }],
+    cols: [{ k: 'created_at', l: 'التاريخ', date: 1 }, { k: 'type', l: 'النوع', map: TYPE_AR }, { k: 'points', l: 'نقاط', num: 1, sum: 1, signed: 1 }, { k: 'balance_after', l: 'الرصيد بعد', num: 1 },
+           { k: 'invoice_no', l: 'فاتورة' }, { k: 'reason', l: 'السبب' }, { k: 'employee', l: 'الموظف' }] },
+  { id: 'ledger', t: 'حركة النقاط لكل العملاء', ic: '🔄', d: 'كل حركات النقاط بالنوع والموظف والفترة', perm: 'customers_view', dates: true, dateKey: 'created_at',
+    load: function () { return call('ledger', { limit: 100000 }); },
+    sel: [{ k: 'type', l: 'النوع', dyn: 'type' }, { k: 'employee', l: 'الموظف', dyn: 'employee' }],
+    cols: [{ k: 'created_at', l: 'التاريخ', date: 1 }, { k: 'name', l: 'العميل', sub: 'member_no' }, { k: 'type', l: 'النوع', map: TYPE_AR }, { k: 'points', l: 'نقاط', num: 1, sum: 1, signed: 1 },
+           { k: 'balance_after', l: 'الرصيد بعد', num: 1 }, { k: 'invoice_no', l: 'فاتورة' }, { k: 'reason', l: 'السبب' }, { k: 'employee', l: 'الموظف' }] },
+  { id: 'whatsapp', t: 'سجل رسائل واتساب', ic: '💬', d: 'آخر 300 رسالة: لمين، أنهي عرض، مين بعتها', perm: 'whatsapp', dates: true, dateKey: 'created_at',
+    load: function () { return call('waLog', {}); },
+    sel: [{ k: 'offer', l: 'العرض', dyn: 'offer' }, { k: 'employee', l: 'الموظف', dyn: 'employee' }],
+    cols: [{ k: 'created_at', l: 'التاريخ', date: 1 }, { k: 'member_no', l: 'العضوية' }, { k: 'phone', l: 'الموبايل', ltr: 1 }, { k: 'offer', l: 'العرض' },
+           { k: 'type', l: 'النوع', map: { offer: 'عرض', card_link: 'رابط الكارت' } }, { k: 'status', l: 'الحالة', map: { sent: 'اتبعتت', undone: 'اتلغت' } }, { k: 'employee', l: 'الموظف' }] }
+];
+function repById(id) { return REPORTS.filter(function (r) { return r.id === id; })[0]; }
+function repOk(r) { return can(r.perm) && (!r.feat || hasFeature(r.feat)); }
 function viewReports(v) {
-  var cur = GO_OPT.range || '30';
-  v.innerHTML = '<div class="card"><h2>📈 التقارير</h2><div class="rep-ranges" id="repR">' +
-    REP_RANGES.map(function (r) { return '<button type="button" class="chip" data-r="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</div>' +
-    '<div class="row" style="margin-top:10px"><div><label>من</label><input type="date" id="repFrom"></div><div><label>إلى</label><input type="date" id="repTo"></div></div>' +
-    '<button class="btn sm" id="repGo" type="button" style="margin-top:8px">عرض</button></div><div id="repBox"></div>';
-  var load = function (from, to) {
-    $('#repFrom').value = from; $('#repTo').value = to;
-    var box = $('#repBox'); loading(box);
-    call('reports', { from: from, to: to }).then(function (r) { renderReport(box, r); })
-      .catch(function (e) { box.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  var r = GO_OPT.report && repById(GO_OPT.report);
+  if (r && repOk(r)) return viewReport(v, r);
+  var list = REPORTS.filter(repOk);
+  v.innerHTML = '<div class="card"><h2>📈 التقارير</h2><p class="small muted">اختار التقرير اللي عايزه. كل تقرير فيه فلاتر وبحث وترتيب، وتقدر تنزّله Excel.</p>' +
+    '<div class="rep-grid">' + list.map(function (x) { return '<button type="button" class="rep-card" data-rep="' + x.id + '"><i>' + x.ic + '</i><b>' + esc(x.t) + '</b><span>' + esc(x.d) + '</span></button>'; }).join('') + '</div></div>';
+  $all('[data-rep]', v).forEach(function (b) { b.onclick = function () { go('reports', { report: b.dataset.rep, back: ['reports', 'قائمة التقارير'] }); }; });
+}
+function viewReport(v, r) {
+  var f = { range: GO_OPT.range || (r.id === 'summary' ? '30' : 'all'), from: '', to: '', days: DASH_DAYS.inactive || 90 };
+  if (f.range) { var x0 = rangeDates(f.range); f.from = x0.from; f.to = x0.to; }
+  var rowsAll = [];
+  v.innerHTML = '<div class="card"><h2>' + r.ic + ' ' + esc(r.t) + '</h2><p class="small muted" style="margin-top:-4px">' + esc(r.d) + '</p>' +
+    (r.customer ? '<label>العميل *</label><input id="rpCust" placeholder="اكتب اسم العميل أو رقمه"><div id="rpCustRes"></div>' : '') +
+    (r.dates ? '<div class="rep-ranges" id="repR" style="margin-top:6px">' + REP_RANGES.map(function (x) { return '<button type="button" class="chip" data-r="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="row" style="margin-top:8px"><div><label>من</label><input type="date" id="repFrom"></div><div><label>إلى</label><input type="date" id="repTo"></div></div>' : '') +
+    (r.days ? '<div class="row"><div><label>مشتروش من كام يوم أو أكتر؟</label><input type="number" min="1" id="rpDays" inputmode="numeric"></div><div></div></div>' : '') +
+    '<div class="row" id="rpSel"></div></div><div id="repBox" style="margin-top:12px"></div>';
+  var box = $('#repBox');
+  var markChips = function () { $all('#repR .chip').forEach(function (b) { b.classList.toggle('on', b.dataset.r === f.range); }); if ($('#repFrom')) { $('#repFrom').value = f.from; $('#repTo').value = f.to; } };
+  var buildSel = function () {
+    if (!r.sel) return;
+    var cur = {}; $all('#rpSel select').forEach(function (s2) { cur[s2.dataset.k] = s2.value; });
+    $('#rpSel').innerHTML = r.sel.map(function (sd) {
+      var opts = sd.opts || [['', 'الكل']].concat(uniq(rowsAll.map(function (x) { return x[sd.dyn]; })).map(function (u) { return [u, sd.dyn === 'type' ? (TYPE_AR[u] || u) : u]; }));
+      return '<div><label>' + sd.l + '</label><select data-k="' + sd.k + '">' + opts.map(function (o) { return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>'; }).join('') + '</select></div>';
+    }).join('');
+    $all('#rpSel select').forEach(function (s2) {
+      var sd = r.sel.filter(function (q) { return q.k === s2.dataset.k; })[0];
+      if (cur[s2.dataset.k] !== undefined) s2.value = cur[s2.dataset.k]; else if (sd.k === 'type' && GO_OPT.type) s2.value = GO_OPT.type;
+      s2.onchange = show;
+    });
   };
-  var pick = function (key) {
-    cur = key;
-    $all('#repR .chip').forEach(function (b) { b.classList.toggle('on', b.dataset.r === key); });
-    var x = rangeDates(key); load(x.from, x.to);
+  var show = function () {
+    if (r.id === 'summary') return;
+    var rows = rowsAll.slice();
+    if (r.dateKey && (f.from || f.to)) rows = rows.filter(function (x) { var k = x[r.dateKey] ? isoDay(x[r.dateKey]) : ''; return k && (!f.from || k >= f.from) && (!f.to || k <= f.to); });
+    if (r.pre) rows = r.pre(rows, f);
+    $all('#rpSel select').forEach(function (s2) {
+      var val = s2.value; if (val === '') return;
+      var sd = r.sel.filter(function (q) { return q.k === s2.dataset.k; })[0];
+      rows = rows.filter(function (x) { return sd.test ? sd.test(x, val) : String(x[sd.dyn]) === val; });
+    });
+    dataTable(box, { cols: r.cols, rows: rows, file: r.id, sort: r.sort });
   };
-  $all('#repR .chip').forEach(function (b) { b.onclick = function () { pick(b.dataset.r); }; });
-  $('#repGo').onclick = function () {
-    var f = $('#repFrom').value, t = $('#repTo').value;
-    if (f && t && f > t) return toast('تاريخ البداية بعد تاريخ النهاية', true);
-    $all('#repR .chip').forEach(function (b) { b.classList.remove('on'); });
-    load(f, t);
+  var load = function () {
+    if (r.customer && !f.customer_id) { box.innerHTML = '<div class="empty">اختار العميل الأول</div>'; return; }
+    loading(box);
+    if (r.id === 'summary') {
+      return call('reports', { from: f.from, to: f.to }).then(function (res) { renderReport(box, res); }).catch(function (e) { box.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+    }
+    r.load(f).then(function (rows) { rowsAll = rows || []; buildSel(); show(); }).catch(function (e) { box.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
   };
-  pick(cur);
+  if (r.dates) {
+    $all('#repR .chip').forEach(function (b) { b.onclick = function () { f.range = b.dataset.r; var x = rangeDates(f.range); f.from = x.from; f.to = x.to; markChips(); r.load && !r.feat && r.id !== 'statement' && rowsAll.length ? show() : load(); }; });
+    var onDate = function () {
+      var a = $('#repFrom').value, b = $('#repTo').value;
+      if (a && b && a > b) return toast('تاريخ البداية بعد تاريخ النهاية', true);
+      f.range = ''; f.from = a; f.to = b; markChips(); r.load && !r.feat && r.id !== 'statement' && rowsAll.length ? show() : load();
+    };
+    $('#repFrom').onchange = onDate; $('#repTo').onchange = onDate;
+    markChips();
+  }
+  if (r.days) { $('#rpDays').value = f.days; $('#rpDays').oninput = function () { f.days = Number($('#rpDays').value) || 0; if (rowsAll.length) show(); }; }
+  if (r.customer) {
+    var tm;
+    $('#rpCust').addEventListener('input', function () {
+      clearTimeout(tm); var q = $('#rpCust').value.trim();
+      if (q.length < 2) { $('#rpCustRes').innerHTML = ''; return; }
+      tm = setTimeout(function () {
+        call('searchCustomers', { q: q, limit: 8 }).then(function (rows) {
+          $('#rpCustRes').innerHTML = rows.length ? rows.map(function (c) { return '<div class="recip click" data-pick="' + esc(c.customer_id) + '" data-nm="' + esc(c.name + ' – ' + c.member_no) + '"><b>' + esc(c.name) + '</b><span class="small muted">' + esc(c.member_no) + ' · ' + esc(c.phone) + '</span></div>'; }).join('') : '<div class="small muted">مفيش عميل بالاسم ده</div>';
+          $all('[data-pick]').forEach(function (el) { el.onclick = function () { f.customer_id = el.dataset.pick; $('#rpCust').value = el.dataset.nm; $('#rpCustRes').innerHTML = ''; load(); }; });
+        }).catch(function (e) { toast(e.message, true); });
+      }, 300);
+    });
+  }
+  load();
+}
+function uniq(a) { var m = {}, out = []; a.forEach(function (x) { if (x !== undefined && x !== null && x !== '' && !m[x]) { m[x] = 1; out.push(String(x)); } }); return out.sort(); }
+function cellVal(c, row) {
+  var v = row[c.k];
+  if (c.map) return c.map[String(v)] !== undefined ? c.map[String(v)] : (v === undefined || v === null ? '' : String(v));
+  return v;
+}
+function cellHtml(c, row) {
+  var v = row[c.k];
+  if (c.date) return v ? d(v, 1) : '—';
+  if (c.money) return money(v);
+  if (c.pct) return fmtNum(v) + '%';
+  if (c.num) return '<span class="' + (c.signed ? (v >= 0 ? 'pos' : 'neg') : '') + '">' + (c.signed && v > 0 ? '+' : '') + fmtNum(v) + '</span>';
+  var t = esc(cellVal(c, row));
+  if (c.sub && row[c.sub]) t += ' <span class="small muted">' + esc(row[c.sub]) + '</span>';
+  return c.ltr ? '<span style="direction:ltr;display:inline-block">' + t + '</span>' : t;
+}
+function dataTable(box, cfg) {
+  var st = { q: '', sk: cfg.sort ? cfg.sort[0] : null, sd: cfg.sort ? cfg.sort[1] : 1 };
+  box.innerHTML = '<div class="card"><div class="toolbar"><input id="dtQ" placeholder="بحث في النتائج"><button class="btn ghost sm" id="dtCsv" type="button">⬇️ تنزيل Excel</button></div>' +
+    '<div class="small muted" id="dtInfo" style="margin:0 4px 8px"></div><div id="dtBody"></div></div>';
+  var visible = function () {
+    var q = st.q.trim().toLowerCase(), rows = cfg.rows;
+    if (q) rows = rows.filter(function (row) { return cfg.cols.some(function (c) { var v = cellVal(c, row); return v !== undefined && v !== null && String(v).toLowerCase().indexOf(q) >= 0; }) || (row.member_no && String(row.member_no).indexOf(q) >= 0); });
+    if (st.sk) {
+      var col = cfg.cols.filter(function (c) { return c.k === st.sk; })[0] || {};
+      rows = rows.slice().sort(function (a, b) {
+        var x = a[st.sk], y = b[st.sk];
+        if (col.date) { x = x ? new Date(x).getTime() : 0; y = y ? new Date(y).getTime() : 0; }
+        else if (col.num || col.money || col.pct || typeof x === 'number') { x = Number(x) || 0; y = Number(y) || 0; }
+        else { x = String(cellVal(col, a) || ''); y = String(cellVal(col, b) || ''); return x.localeCompare(y, 'ar') * st.sd; }
+        return (x - y) * st.sd;
+      });
+    }
+    return rows;
+  };
+  var render = function () {
+    var rows = visible();
+    $('#dtInfo').textContent = 'عدد النتائج: ' + fmtNum(rows.length) + (cfg.rows.length !== rows.length ? ' من ' + fmtNum(cfg.rows.length) : '') + ' · اضغط على اسم العمود للترتيب';
+    if (!rows.length) { $('#dtBody').innerHTML = '<div class="empty">لا توجد بيانات بالفلاتر دي</div>'; return; }
+    var sums = cfg.cols.some(function (c) { return c.sum; });
+    $('#dtBody').innerHTML = '<div class="tblwrap"><table class="tbl dt"><tr>' + cfg.cols.map(function (c) {
+      return '<th data-sk="' + c.k + '" class="sortable">' + esc(c.l) + (st.sk === c.k ? (st.sd > 0 ? ' ▲' : ' ▼') : '') + '</th>';
+    }).join('') + '</tr>' + rows.map(function (row, i) {
+      return '<tr' + (row.customer_id ? ' class="click" data-cid="' + esc(row.customer_id) + '"' : '') + '>' + cfg.cols.map(function (c) { return '<td>' + cellHtml(c, row) + '</td>'; }).join('') + '</tr>';
+    }).join('') + (sums ? '<tr class="tot">' + cfg.cols.map(function (c, i) {
+      if (!c.sum) return '<td>' + (i === 0 ? '<b>الإجمالي</b>' : '') + '</td>';
+      var t = rows.reduce(function (a, row) { return a + (Number(row[c.k]) || 0); }, 0);
+      return '<td><b>' + (c.money ? money(t) : fmtNum(t)) + '</b></td>';
+    }).join('') + '</tr>' : '') + '</table></div>';
+    $all('#dtBody th[data-sk]').forEach(function (th) { th.onclick = function () { if (st.sk === th.dataset.sk) st.sd = -st.sd; else { st.sk = th.dataset.sk; st.sd = 1; } render(); }; });
+    $all('#dtBody [data-cid]').forEach(function (tr) { tr.onclick = function () { openCustomer(tr.dataset.cid); }; });
+  };
+  var t; $('#dtQ').addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { st.q = $('#dtQ').value; render(); }, 200); });
+  $('#dtCsv').onclick = function () {
+    var rows = visible();
+    var q = function (x) { x = x === undefined || x === null ? '' : String(x); return '"' + x.replace(/"/g, '""') + '"'; };
+    var lines = [cfg.cols.map(function (c) { return q(c.l); }).join(',')].concat(rows.map(function (row) {
+      return cfg.cols.map(function (c) { var v = row[c.k]; return q(c.date ? (v ? fmtDate(v, 'ar', 1) : '') : (c.map ? cellVal(c, row) : v)); }).join(',');
+    }));
+    var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mobily-' + cfg.file + '-' + dayKey(new Date()) + '.csv';
+    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast('تم تنزيل الملف ✓');
+  };
+  render();
 }
 function sg(n, sign) { return n ? sign + fmtNum(n) : '0'; }
 function bars(rows, label, val, fmt) {
@@ -716,16 +922,39 @@ function stopScan() {
 }
 
 /* ---------------- العملاء ---------------- */
+var CUST_FILTERS = [['all', 'كل العملاء'], ['new', 'العملاء الجدد'], ['inactive', 'غير النشطين'], ['wa', 'الموافقين على واتساب'], ['points', 'اللي عندهم نقاط'], ['suspended', 'الموقوفين']];
+function custMatch(c, f) {
+  var now = Date.now(), day = 86400000;
+  if (f === 'new') return !!c.created_at && now - new Date(c.created_at).getTime() <= DASH_DAYS['new'] * day;
+  if (f === 'inactive') { var l = c.last_purchase_at || c.created_at; return c.status === 'active' && !!l && now - new Date(l).getTime() > DASH_DAYS.inactive * day; }
+  if (f === 'wa') return !!c.wa_opt_in && c.status === 'active';
+  if (f === 'points') return Number(c.points_balance) > 0;
+  if (f === 'suspended') return c.status !== 'active';
+  return true;
+}
+function ensureDays() {
+  if (DASH_DAYS.loaded || !can('dashboard')) return Promise.resolve();
+  return call('dashboard').then(function (s) { DASH_DAYS = { 'new': s.new_days, inactive: s.inactive_days, loaded: true }; }).catch(function () { });
+}
 function viewCustomers(v) {
   v.innerHTML = '<div class="card"><div class="toolbar"><input id="cQ" placeholder="ابحث بالاسم أو رقم الموبايل أو رقم العضوية">' +
-    (can('customers_manage') ? '<button class="btn sm" id="cNew" type="button">+ عميل جديد</button>' : '') + '</div><div id="cList"></div></div>';
+    '<select id="cF" style="flex:0 0 200px">' + CUST_FILTERS.map(function (f) { return '<option value="' + f[0] + '">' + f[1] + '</option>'; }).join('') + '</select>' +
+    (can('customers_manage') ? '<button class="btn sm" id="cNew" type="button">+ عميل جديد</button>' : '') + '</div><div class="small muted" id="cCount" style="margin:0 4px 8px"></div><div id="cList"></div></div>';
+  if (GO_OPT.filter) $('#cF').value = GO_OPT.filter;
+  $('#cF').onchange = loadCustomers;
   var t; $('#cQ').addEventListener('input', function () { clearTimeout(t); t = setTimeout(loadCustomers, 300); });
   if ($('#cNew')) $('#cNew').onclick = newCustomer;
   loadCustomers();
 }
 function loadCustomers() {
   var box = $('#cList'); loading(box);
-  call('searchCustomers', { q: $('#cQ').value }).then(function (rows) {
+  var f = $('#cF') ? $('#cF').value : 'all';
+  ensureDays().then(function () { return call('searchCustomers', { q: $('#cQ').value, limit: f === 'all' ? 200 : 100000 }); }).then(function (rows) {
+    rows = rows.filter(function (c) { return custMatch(c, f); });
+    if (f === 'points') rows.sort(function (a, b) { return b.points_balance - a.points_balance; });
+    if (f === 'inactive') rows.sort(function (a, b) { return new Date(a.last_purchase_at || a.created_at) - new Date(b.last_purchase_at || b.created_at); });
+    if ($('#cCount')) $('#cCount').textContent = (f === 'all' ? '' : CUST_FILTERS.filter(function (x) { return x[0] === f; })[0][1] + ': ') + fmtNum(rows.length) + ' عميل' +
+      (f === 'new' ? ' (آخر ' + DASH_DAYS['new'] + ' يوم)' : f === 'inactive' ? ' (مشتروش من ' + DASH_DAYS.inactive + ' يوم أو أكتر)' : '');
     box.innerHTML = rows.length ? '<div class="tblwrap"><table class="tbl"><tr><th>العضوية</th><th>الاسم</th><th>الموبايل</th><th>النقاط</th><th>المشتريات</th><th>واتساب</th><th>الحالة</th></tr>' + rows.map(function (c) {
       return '<tr class="click" data-cid="' + esc(c.customer_id) + '"><td>' + esc(c.member_no) + '</td><td><b>' + esc(c.name) + '</b></td><td style="direction:ltr;text-align:end">' + esc(c.phone) + '</td><td>' + fmtNum(c.points_balance) + '</td><td>' + money(c.total_spent) + '</td><td>' +
         (c.wa_opt_in ? badge('موافق', 'green') : badge('لا', 'gray')) + '</td><td>' + (c.status === 'active' ? badge('نشط', 'green') : badge('موقوف', 'red')) + '</td></tr>';
