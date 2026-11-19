@@ -375,7 +375,7 @@ $('#regForm').addEventListener('submit', function (ev) {
   api('publicApi', 'register', data).then(function (res) {
     $('#formView').classList.add('hidden'); $('#doneView').classList.remove('hidden');
     $('#openCard').href = res.card_url;
-    if (S.wa_community_link) { $('#joinComm').href = S.wa_community_link; $('#joinComm').classList.remove('hidden'); $('#joinCommGap').classList.remove('hidden'); }
+    if (S.wa_community_link && data.consent) { $('#joinComm').href = S.wa_community_link; $('#joinComm').classList.remove('hidden'); $('#joinCommGap').classList.remove('hidden'); }
     $('#previewCard').innerHTML =
       '<div class="top"><div class="brand">' + esc(S.shop_name) + '<span>CLUB</span></div><div class="tier">' + (LANG === 'en' ? 'MEMBER' : 'عضو') + '</div></div>' +
       '<div class="chipicon"></div><div class="tag">' + esc(S.tagline) + '</div>' +

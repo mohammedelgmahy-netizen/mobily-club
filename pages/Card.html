@@ -74,6 +74,8 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--brand);flex:0 0 a
 .btn:disabled{opacity:.55;cursor:wait}
 .btn.ghost{background:rgba(255,255,255,.05);color:var(--text);border:1px solid var(--line);box-shadow:none}
 .btn.wa{background:#25D366;color:#062612;box-shadow:0 12px 30px -14px rgba(37,211,102,.8)}
+.btn.comm{margin:14px 0 0;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#06101F;box-shadow:0 12px 30px -12px rgba(139,92,246,.7)}
+.btn.comm svg{width:22px;height:22px}
 .btn.sm{width:auto;padding:8px 14px;font-size:13.5px;border-radius:11px}
 .btn svg{width:20px;height:20px}
 .row{display:flex;gap:10px}.row>*{flex:1}
@@ -163,6 +165,7 @@ details.howto summary{cursor:pointer;font-weight:700}
 
   <div class="panel" style="text-align:center">
     <div class="qrbox" id="qr"></div>
+    <a class="btn comm hidden" id="commJoin" target="_blank" rel="noopener"></a>
     <p class="small muted" style="margin:10px 0 0" id="qrHint"></p>
   </div>
 
@@ -202,6 +205,7 @@ var ICONS = {
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>',
   gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>',
   wa: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91A9.85 9.85 0 0 0 12.04 2zm5.8 14.03c-.25.69-1.44 1.32-1.99 1.36-.51.05-1.15.07-1.85-.12-.43-.13-.97-.31-1.67-.61-2.94-1.27-4.86-4.23-5-4.43-.15-.2-1.2-1.6-1.2-3.05s.76-2.16 1.03-2.46c.27-.3.59-.37.79-.37h.57c.18 0 .43-.07.67.51.25.59.84 2.04.91 2.19.07.15.12.32.02.52-.1.2-.15.32-.3.49-.15.17-.31.39-.44.52-.15.15-.3.31-.13.6.17.3.76 1.25 1.63 2.02 1.12 1 2.06 1.31 2.36 1.46.3.15.47.12.64-.07.17-.2.74-.86.94-1.16.2-.3.39-.25.66-.15.27.1 1.72.81 2.02.96.3.15.49.22.57.34.07.12.07.71-.18 1.4z"/></svg>',
+  community: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3"/><path d="M6.5 20v-1a5.5 5.5 0 0 1 11 0v1"/><circle cx="5" cy="10" r="2.2"/><path d="M1.5 19v-.5A3.6 3.6 0 0 1 5.6 15"/><circle cx="19" cy="10" r="2.2"/><path d="M22.5 19v-.5a3.6 3.6 0 0 0-4.1-3.5"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18.3 5.5 22l1.7-7.4-5.7-5 7.5-.7z"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>',
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
@@ -298,7 +302,7 @@ var L = {
     waTitle: 'عروض واتساب', waOn: 'مشترك في استقبال العروض', waOff: 'غير مشترك — لن تصلك عروض', saved: 'تم الحفظ ✓',
     homeTitle: '📲 أضف الكارت للشاشة الرئيسية', copy: 'نسخ الرابط', share: 'مشاركة', copied: 'تم النسخ ✓',
     home: '<b>آيفون (Safari):</b> اضغط زر المشاركة ⬆️ ثم "إضافة إلى الشاشة الرئيسية".<br><b>أندرويد (Chrome):</b> اضغط ⋮ ثم "إضافة إلى الشاشة الرئيسية".<br>الرابط خاص بيك، لا تشاركه مع أحد.',
-    contact: 'تواصل مع MOBILY على واتساب', expiring: function (n, d) { return n + ' نقطة تنتهي في ' + d; },
+    contact: 'تواصل مع MOBILY على واتساب', community: 'انضم إلى MOBILY Community', expiring: function (n, d) { return n + ' نقطة تنتهي في ' + d; },
     nextTier: function (n, t) { return 'باقي ' + n + ' نقطة للوصول إلى مستوى ' + t; }, suspended: 'عضويتك موقوفة حالياً. تواصل مع المحل.',
     types: { EARN: 'نقاط مشتريات', REDEEM: 'استبدال مكافأة', ADJUST_ADD: 'إضافة من الإدارة', ADJUST_SUB: 'خصم من الإدارة', REVERSAL: 'إلغاء فاتورة', REDEEM_REVERSAL: 'استرجاع نقاط', EXPIRE: 'انتهاء صلاحية' },
     void: 'ملغاة', disc: 'خصم' },
@@ -310,7 +314,7 @@ var L = {
     waTitle: 'WhatsApp offers', waOn: 'Subscribed to offers', waOff: 'Not subscribed — you will not receive offers', saved: 'Saved ✓',
     homeTitle: '📲 Add the card to your home screen', copy: 'Copy link', share: 'Share', copied: 'Copied ✓',
     home: '<b>iPhone (Safari):</b> tap Share ⬆️ then "Add to Home Screen".<br><b>Android (Chrome):</b> tap ⋮ then "Add to Home screen".<br>This link is private — do not share it.',
-    contact: 'Chat with MOBILY on WhatsApp', expiring: function (n, d) { return n + ' points expire on ' + d; },
+    contact: 'Chat with MOBILY on WhatsApp', community: 'Join MOBILY Community', expiring: function (n, d) { return n + ' points expire on ' + d; },
     nextTier: function (n, t) { return n + ' more points to reach ' + t; }, suspended: 'Your membership is suspended. Please contact the shop.',
     types: { EARN: 'Purchase points', REDEEM: 'Reward redeemed', ADJUST_ADD: 'Added by staff', ADJUST_SUB: 'Deducted by staff', REVERSAL: 'Invoice cancelled', REDEEM_REVERSAL: 'Points returned', EXPIRE: 'Expired' },
     void: 'void', disc: 'discount' }
@@ -336,6 +340,9 @@ function render() {
     '<div class="pts" id="ptsVal">' + fmtNum(P.available, 'en') + '<small>' + x.points + '</small></div></div>';
 
   $('#qrHint').textContent = x.qrHint;
+  var commLink = /^https:\/\/chat\.whatsapp\.com\/\S+$/.test(String(S.wa_community_link || '').trim()) ? String(S.wa_community_link).trim() : '';
+  $('#commJoin').innerHTML = ICONS.community + ' ' + x.community;
+  if (commLink) { $('#commJoin').href = commLink; $('#commJoin').classList.remove('hidden'); } else { $('#commJoin').removeAttribute('href'); $('#commJoin').classList.add('hidden'); }
   $('#stats').innerHTML =
     '<div class="stat"><b>' + fmtNum(P.available, 'en') + '</b><span>' + x.available + '</span></div>' +
     '<div class="stat"><b>' + fmtNum(P.earned_total, 'en') + '</b><span>' + x.earned + '</span></div>' +
