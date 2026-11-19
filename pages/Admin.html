@@ -470,7 +470,7 @@ function boot() {
 
 var PAGES = [
   ['dashboard', 'لوحة المؤشرات', 'dashboard', '📊', '#0891B2'], ['reports', 'التقارير', 'dashboard', '📈', '#2563EB'], ['sales', 'تسجيل بيع / استبدال', 'sales', '🧾', '#16A34A'], ['customers', 'العملاء', 'customers_view', '👥', '#2563EB'],
-  ['offers', 'العروض', 'offers_manage', '🎁', '#DB2777'], ['whatsapp', 'واتساب', 'whatsapp', '💬', '#059669'], ['birthdays', 'أعياد الميلاد', 'whatsapp', '🎂', '#E11D48'], ['ledger', 'سجل النقاط', 'customers_view', '⭐', '#D97706'],
+  ['offers', 'العروض', 'offers_manage', '🎁', '#DB2777'], ['products', 'المنتجات', 'settings', '🛍️', '#EA580C'], ['whatsapp', 'واتساب', 'whatsapp', '💬', '#059669'], ['birthdays', 'أعياد الميلاد', 'whatsapp', '🎂', '#E11D48'], ['ledger', 'سجل النقاط', 'customers_view', '⭐', '#D97706'],
   ['settings', 'الإعدادات', 'settings', '⚙️', '#475569'], ['users', 'الموظفون', 'users_manage', '🧑‍💼', '#7C3AED'], ['activity', 'سجل العمليات', 'audit', '📋', '#0F766E'], ['qr', 'QR المحل', null, '🔳', '#0B1222']
 ];
 function pageOk(p) {
@@ -491,7 +491,7 @@ function go(p, opt) {
     (GO_OPT.label ? '<span class="badge gold">' + esc(GO_OPT.label) + '</span>' : '') + '</div>' : '') + '<div id="viewIn"></div>';
   if (back) $('#backBtn').onclick = function () { go(back[0], back[2]); };
   var v = $('#viewIn'); loading(v);
-  ({ dashboard: viewDashboard, reports: viewReports, birthdays: viewBirthdays, sales: viewSales, customers: viewCustomers, offers: viewOffers, whatsapp: viewWhatsApp,
+  ({ dashboard: viewDashboard, reports: viewReports, birthdays: viewBirthdays, sales: viewSales, customers: viewCustomers, offers: viewOffers, products: function (v) { if (window.viewProducts) viewProducts(v); else v.innerHTML = '<div class="err">تعذر تحميل صفحة المنتجات، حدّث الصفحة</div>'; }, whatsapp: viewWhatsApp,
      ledger: viewLedger, settings: viewSettings, users: viewUsers, activity: viewActivity, qr: viewQR }[p] || viewDashboard)(v);
 }
 
@@ -1622,5 +1622,6 @@ function viewQR(v) {
 boot();
 </script>
 
+<script src="shop-admin.js?v=7323a569a8"></script>
 </body>
 </html>
