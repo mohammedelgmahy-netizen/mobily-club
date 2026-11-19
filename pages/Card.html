@@ -94,23 +94,27 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--brand);flex:0 0 a
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent)}
 .lcard::after{content:"";position:absolute;left:-30px;bottom:-60px;width:220px;height:220px;border-radius:50%;
   border:28px solid rgba(34,211,238,.07)}
-.lcard .top{display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:1}
-.lcard .brand{font-family:'Inter','Cairo',sans-serif;font-weight:800;font-size:18px;letter-spacing:0;direction:ltr;display:flex;align-items:center;gap:9px}
-.lcard .brand .bm{width:38px;height:38px;flex:0 0 38px;background:transparent;overflow:hidden;display:block}
-.lcard .brand .bm img{width:38px;height:38px;display:block}
-.lcard .brand span{display:block;font-size:9.5px;letter-spacing:4px;color:#F5C542;font-weight:700}
-.lcard .tier{font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);letter-spacing:.5px}
-.lcard .mid{position:absolute;inset:auto 20px 16px 20px;display:flex;justify-content:space-between;align-items:flex-end;z-index:1;gap:10px}
-.lcard .name{font-size:17px;font-weight:800;line-height:1.25;max-width:58vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lcard .mno{font-family:'Inter',monospace;letter-spacing:2px;font-size:13px;color:#C7D2FE;direction:ltr;text-align:right}
-.lcard .pts{font-family:'Inter',sans-serif;font-size:30px;font-weight:800;line-height:1;direction:ltr}
-.lcard .pts small{font-family:'Cairo';font-size:11px;font-weight:700;color:var(--muted);display:block;margin-top:4px;text-align:end}
-.lcard .chipicon{position:absolute;top:58px;left:20px;width:42px;height:32px;border-radius:7px;z-index:1;
+.lcard{direction:ltr}
+.lcard .top{position:absolute;top:16px;left:20px;right:20px;display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:1}
+.lcard .brand{min-width:0;font-family:'Inter','Cairo',sans-serif}
+.lcard .brand .bn{direction:rtl;unicode-bidi:isolate;text-align:left;font-weight:800;font-size:15px;line-height:1.2;white-space:nowrap}
+.lcard .brand .tag{font-family:'Inter';font-size:9.5px;color:rgba(255,255,255,.55);letter-spacing:.8px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lcard .clogo{flex:0 0 auto;display:block;height:clamp(34px,11vw,46px);width:auto;max-width:48%;object-fit:contain}
+.lcard .chipicon{position:absolute;top:40%;left:20px;width:42px;height:32px;border-radius:7px;z-index:1;transform:translateY(-50%);
   background:linear-gradient(135deg,#F5D27A,#B8892E);box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
 .lcard .chipicon::before{content:"";position:absolute;inset:7px 10px;border:1.5px solid rgba(0,0,0,.25);border-radius:4px}
-.lcard .tag{position:absolute;top:66px;right:20px;font-family:'Inter';font-size:10.5px;color:rgba(255,255,255,.55);letter-spacing:1px;z-index:1;direction:ltr}
-.qrbox{background:#fff;border-radius:16px;padding:14px;display:flex;justify-content:center;align-items:center;margin:0 auto;width:max-content}
-.qrbox img,.qrbox canvas{display:block}
+.lcard .mno{position:absolute;left:0;right:0;top:54%;transform:translateY(-50%);text-align:center;z-index:1;direction:ltr;
+  font-family:'Inter',monospace;font-weight:700;font-size:clamp(20px,7vw,28px);letter-spacing:5px;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.35)}
+.lcard .mno small{display:block;font-family:'Inter','Cairo',sans-serif;font-size:9px;font-weight:700;letter-spacing:2px;color:#C7D2FE;margin-bottom:2px}
+.lcard .bot{position:absolute;left:20px;right:20px;bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px;z-index:1}
+.lcard .who{min-width:0}
+.lcard .name{font-size:16px;font-weight:800;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;unicode-bidi:plaintext}
+.lcard .tier{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);letter-spacing:.5px;margin-top:4px}
+.lcard .pts{font-family:'Inter',sans-serif;font-size:28px;font-weight:800;line-height:1;text-align:right;flex:0 0 auto}
+.lcard .pts small{font-family:'Cairo';font-size:11px;font-weight:700;color:var(--muted);display:block;margin-top:4px;text-align:right}
+.bcbox{background:#fff;border-radius:16px;padding:16px 0 10px;margin:0 auto;width:100%;max-width:400px}
+.bcbox svg{display:block;max-width:100%;height:110px}
+.bcbox .bcn{font-family:'Inter',monospace;font-size:18px;font-weight:700;letter-spacing:4px;color:#000;direction:ltr;text-align:center;margin-top:6px}
 
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .stat{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:14px;padding:12px 10px;text-align:center}
@@ -167,7 +171,7 @@ details.howto summary{cursor:pointer;font-weight:700}
   <div class="lcard" id="card"></div>
 
   <div class="panel" style="text-align:center">
-    <div class="qrbox" id="qr"></div>
+    <div class="bcbox" id="qr"></div>
     <a class="btn comm hidden" id="commJoin" target="_blank" rel="noopener"></a>
     <p class="small muted" style="margin:10px 0 0" id="qrHint"></p>
   </div>
@@ -201,7 +205,6 @@ details.howto summary{cursor:pointer;font-weight:700}
   <a class="btn wa" id="waContact" target="_blank" rel="noopener"></a>
   <div class="footer" id="footer"></div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 /* موبايلي - Mobily — أدوات مشتركة لصفحات المتصفح */
 var ICONS = {
@@ -338,9 +341,11 @@ function render() {
   $('#suspended').textContent = x.suspended;
 
   $('#card').innerHTML =
-    '<div class="top"><div class="brand"><i class="bm">' + LOGO_MARK + '</i><div>' + esc(S.shop_name) + '</div></div><div class="tier"' + tierStyle + '>' + esc(tierName) + '</div></div>' +
-    '<div class="chipicon"></div><div class="tag">' + esc(S.tagline) + '</div>' +
-    '<div class="mid"><div><div class="name">' + esc(c.name) + '</div><div class="mno">' + esc(String(c.member_no).replace(/(\d{3})(?=\d)/g, '$1 ')) + '</div></div>' +
+    '<div class="top"><div class="brand"><div class="bn">' + esc(S.shop_name) + '</div><div class="tag">' + esc(S.tagline) + '</div></div>' +
+    '<img class="clogo" src="' + LOGO_WIDE + '" alt=""></div>' +
+    '<div class="chipicon"></div>' +
+    '<div class="mno"><small>MEMBERSHIP NO.</small>' + esc(String(c.member_no).replace(/(\d{3})(?=\d)/g, '$1 ')) + '</div>' +
+    '<div class="bot"><div class="who"><div class="name">' + esc(c.name) + '</div><div class="tier"' + tierStyle + '>' + esc(tierName) + '</div></div>' +
     '<div class="pts" id="ptsVal">' + fmtNum(P.available, 'en') + '<small>' + x.points + '</small></div></div>';
 
   $('#qrHint').textContent = x.qrHint;
@@ -412,7 +417,37 @@ function render() {
   $('#footer').innerHTML = esc(S.program_name) + ' · <span style="direction:ltr;display:inline-block">' + esc(S.tagline) + '</span><br>' + esc(S.shop_name_ar || S.shop_name) + ' · ' + esc(S.shop_phone) + (S.shop_address ? '<br>' + esc(S.shop_address) : '');
 }
 
-renderQR($('#qr'), D.card_url, 190);
+// باركود خطي Code 128 لرقم العضوية (بدون مكتبات خارجية)
+var C128 = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213','221312','231212','112232','122132','122231','113222','123122','123221','223211','221132','221231','213212','223112','312131','311222','321122','321221','312212','322112','322211','212123','212321','232121','111323','131123','131321','112313','132113','132311','211313','231113','231311','112133','112331','132131','113123','113321','133121','313121','211331','231131','213113','213311','213131','311123','311321','331121','312113','312311','332111','314111','221411','431111','111224','111422','121124','121421','141122','141221','112214','112412','122114','122411','142112','142211','241211','221114','413111','241112','134111','111242','121142','121241','114212','124112','124211','411212','421112','421211','212141','214121','412121','111143','111341','131141','114113','114311','411113','411311','113141','114131','311141','411131','211412','211214','211232','2331112'];
+function code128Codes(text) {
+  text = String(text);
+  var codes = [], i = 0;
+  if (/^\d+$/.test(text) && text.length >= 2) {
+    codes.push(105); // Start C
+    for (; i + 1 < text.length; i += 2) codes.push(parseInt(text.substr(i, 2), 10));
+    if (i < text.length) { codes.push(100); codes.push(text.charCodeAt(i) - 32); }
+  } else {
+    codes.push(104); // Start B
+    for (; i < text.length; i++) { var cc = text.charCodeAt(i); if (cc < 32 || cc > 126) cc = 63; codes.push(cc - 32); }
+  }
+  var sum = codes[0];
+  for (var k = 1; k < codes.length; k++) sum += codes[k] * k;
+  codes.push(sum % 103); codes.push(106); // checksum + Stop
+  return codes;
+}
+function renderBarcode(el, text) {
+  var codes = code128Codes(text), quiet = 12, x = quiet, rects = '';
+  codes.forEach(function (c) {
+    var p = C128[c];
+    for (var k = 0; k < p.length; k++) { var w = +p[k]; if (k % 2 === 0) rects += '<rect x="' + x + '" y="0" width="' + w + '" height="60"/>'; x += w; }
+  });
+  var total = x + quiet;
+  // عرض كل خط رقم صحيح من البكسلات علشان الخطوط تطلع حادة ومتساوية والجهاز يقرأها من الشاشة
+  var m = Math.max(2, Math.floor((el.clientWidth || 320) / total));
+  el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" style="width:' + (total * m) + 'px;margin:0 auto" viewBox="0 0 ' + total + ' 60" preserveAspectRatio="none" shape-rendering="crispEdges" role="img" aria-label="' + esc(String(text)) + '"><rect width="' + total + '" height="60" fill="#fff"/><g fill="#000">' + rects + '</g></svg>' +
+    '<div class="bcn">' + esc(String(text)) + '</div>';
+}
+renderBarcode($('#qr'), D.customer.member_no);
 render();
 if (BOOT.focusOffer) setTimeout(function () { var el = document.getElementById('offer-' + BOOT.focusOffer); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
 
