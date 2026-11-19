@@ -946,7 +946,10 @@ function stopScan() {
 }
 
 /* ---------------- العملاء ---------------- */
-var CUST_FILTERS = [['all', 'كل العملاء'], ['new', 'العملاء الجدد'], ['inactive', 'غير النشطين'], ['wa', 'الموافقين على واتساب'], ['points', 'اللي عندهم نقاط'], ['suspended', 'الموقوفين']];
+var CUST_FILTERS = [['all', 'كل العملاء'], ['new', 'العملاء الجدد'], ['inactive', 'غير النشطين'], ['wa', 'الموافقين على واتساب'], ['points', 'اللي عندهم نقاط'], ['suspended', 'الموقوفين'],
+  ['comm_opted_in', 'المجتمع: Opted In (وافق ولسه ما اتبعتلوش)'], ['comm_sent', 'المجتمع: Invitation Sent (اتبعتله الدعوة)'], ['comm_joined', 'المجتمع: Joined (انضم)'], ['comm_declined', 'المجتمع: Declined (مش موافق)']];
+var COMM_ST = { opted_in: ['Opted In', '', 'وافق على الانضمام ولسه الدعوة ما اتبعتتش'], sent: ['Invitation Sent', 'gold', 'اتبعتله دعوة المجتمع'], joined: ['Joined', 'green', 'انضم للمجتمع'], declined: ['Declined', 'gray', 'مش موافق / سحب موافقته — مفيش دعوات ولا رسائل'] };
+function commBadge(st) { var x = COMM_ST[st] || COMM_ST.declined; return '<span title="' + x[2] + '">' + badge(x[0], x[1]) + '</span>'; }
 function custMatch(c, f) {
   var now = Date.now(), day = 86400000;
   if (f === 'new') return !!c.created_at && now - new Date(c.created_at).getTime() <= DASH_DAYS['new'] * day;
@@ -954,6 +957,7 @@ function custMatch(c, f) {
   if (f === 'wa') return !!c.wa_opt_in && c.status === 'active';
   if (f === 'points') return Number(c.points_balance) > 0;
   if (f === 'suspended') return c.status !== 'active';
+  if (f.indexOf('comm_') === 0) return (c.comm || (c.wa_opt_in ? 'opted_in' : 'declined')) === f.slice(5);
   return true;
 }
 function ensureDays() {
@@ -979,9 +983,9 @@ function loadCustomers() {
     if (f === 'inactive') rows.sort(function (a, b) { return new Date(a.last_purchase_at || a.created_at) - new Date(b.last_purchase_at || b.created_at); });
     if ($('#cCount')) $('#cCount').textContent = (f === 'all' ? '' : CUST_FILTERS.filter(function (x) { return x[0] === f; })[0][1] + ': ') + fmtNum(rows.length) + ' عميل' +
       (f === 'new' ? ' (آخر ' + DASH_DAYS['new'] + ' يوم)' : f === 'inactive' ? ' (مشتروش من ' + DASH_DAYS.inactive + ' يوم أو أكتر)' : '');
-    box.innerHTML = rows.length ? '<div class="tblwrap"><table class="tbl"><tr><th>العضوية</th><th>الاسم</th><th>الموبايل</th><th>النقاط</th><th>المشتريات</th><th>واتساب</th><th>الحالة</th></tr>' + rows.map(function (c) {
+    box.innerHTML = rows.length ? '<div class="tblwrap"><table class="tbl"><tr><th>العضوية</th><th>الاسم</th><th>الموبايل</th><th>النقاط</th><th>المشتريات</th><th>واتساب</th><th>المجتمع</th><th>الحالة</th></tr>' + rows.map(function (c) {
       return '<tr class="click" data-cid="' + esc(c.customer_id) + '"><td>' + esc(c.member_no) + '</td><td><b>' + esc(c.name) + '</b></td><td style="direction:ltr;text-align:end">' + esc(c.phone) + '</td><td>' + fmtNum(c.points_balance) + '</td><td>' + money(c.total_spent) + '</td><td>' +
-        (c.wa_opt_in ? badge('موافق', 'green') : badge('لا', 'gray')) + '</td><td>' + (c.status === 'active' ? badge('نشط', 'green') : badge('موقوف', 'red')) + '</td></tr>';
+        (c.wa_opt_in ? badge('موافق', 'green') : badge('لا', 'gray')) + '</td><td>' + commBadge(c.comm || (c.wa_opt_in ? 'opted_in' : 'declined')) + '</td><td>' + (c.status === 'active' ? badge('نشط', 'green') : badge('موقوف', 'red')) + '</td></tr>';
     }).join('') + '</table></div>' : '<div class="empty">لا يوجد عملاء مطابقون</div>';
     $all('[data-cid]', box).forEach(function (tr) { tr.onclick = function () { openCustomer(tr.dataset.cid); }; });
   }).catch(function (e) { box.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
@@ -1012,7 +1016,7 @@ function renderCustomer(body, r) {
   var c = r.customer, b = r.balance, mg = can('customers_manage');
   body.innerHTML =
     '<div class="cust-chip"><div><b>' + esc(c.name) + '</b><div class="small" style="opacity:.8">عضوية ' + esc(c.member_no) + ' · ' + esc(c.phone) + (r.tier && r.tier.tier_id ? ' · ' + esc(r.tier.name_ar) : '') + '</div>' +
-    (c.status === 'active' ? badge('نشط', 'green') : badge('موقوف', 'red')) + ' ' + (c.wa_opt_in ? badge('موافق على واتساب', 'green') : badge('غير موافق على واتساب', 'gray')) + '</div>' +
+    (c.status === 'active' ? badge('نشط', 'green') : badge('موقوف', 'red')) + ' ' + (c.wa_opt_in ? badge('موافق على واتساب', 'green') : badge('غير موافق على واتساب', 'gray')) + ' ' + commBadge(c.comm || (c.wa_opt_in ? 'opted_in' : 'declined')) + '</div>' +
     '<div style="text-align:center"><div class="p">' + fmtNum(b.available, 'en') + '</div><div class="small" style="opacity:.8">نقطة متاحة</div></div></div>' +
     '<div class="grid kpis" style="margin-top:10px">' +
     [['مكتسبة', b.earned_total], ['مستبدلة', b.redeemed_total], ['منتهية', b.expired_total], ['إجمالي المشتريات', money(c.total_spent)], ['عدد العمليات', c.purchases_count]]
@@ -1030,7 +1034,8 @@ function renderCustomer(body, r) {
       '<div class="small muted" style="margin-top:6px">مسجل ' + d(c.created_at, 1) + ' بواسطة ' + esc(c.created_by) + '</div>' +
       '<div class="toolbar" style="margin-top:10px"><button class="btn sm" id="edSave" type="button">حفظ التعديلات</button>' +
       '<button class="btn ghost sm" id="edStatus" type="button">' + (c.status === 'active' ? 'إيقاف العضوية' : 'إعادة تفعيل العضوية') + '</button>' +
-      '<button class="btn ghost sm" id="edConsent" type="button">' + (c.wa_opt_in ? 'تسجيل إلغاء موافقة واتساب' : 'تسجيل موافقة واتساب') + '</button></div></div>' +
+      '<button class="btn ghost sm" id="edConsent" type="button">' + (c.wa_opt_in ? 'سحب الموافقة (إيقاف الدعوات والعروض)' : 'تسجيل موافقة واتساب') + '</button>' +
+      (c.wa_opt_in && c.comm ? '<button class="btn ghost sm" id="edJoined" type="button">' + (c.comm === 'joined' ? 'شيل علامة «انضم للمجتمع»' : '✓ علّم إنه انضم للمجتمع') + '</button>' : '') + '</div></div>' +
       '<div class="card" style="margin-top:12px"><h2>الرقم السري للعميل</h2><p class="small muted">العميل بيفتح كارته من الصفحة الرئيسية برقم موبايله والرقم السري. ' + (c.has_pin ? badge('متسجل', 'green') : badge('مش متسجل', 'gray')) + '</p>' +
       '<div class="row" style="align-items:flex-end"><div><label>رقم سري جديد (4 أرقام)</label><input id="pinNew" inputmode="numeric" maxlength="4" style="direction:ltr"></div><div style="flex:0 0 auto"><button class="btn sm" id="pinSave" type="button">حفظ الرقم السري</button></div></div></div>' : '') +
 
@@ -1061,6 +1066,9 @@ function renderCustomer(body, r) {
     $('#edStatus').onclick = function () {
       if (!confirmInline($('#edStatus'), 'اضغط مرة أخرى للتأكيد')) return;
       call('setCustomerStatus', { customer_id: c.customer_id, status: c.status === 'active' ? 'suspended' : 'active' }, true).then(function () { toast('تم ✓'); reload(); }).catch(function (e) { toast(e.message, true); });
+    };
+    if ($('#edJoined')) $('#edJoined').onclick = function () {
+      call('commJoined', { customer_id: c.customer_id, joined: c.comm !== 'joined' }, true).then(function () { toast('تم ✓'); reload(); }).catch(function (e) { toast(e.message, true); });
     };
     $('#edConsent').onclick = function () {
       call('setConsent', { customer_id: c.customer_id, optIn: !c.wa_opt_in, source: 'in_store' }, true).then(function () { toast('تم تسجيل الموافقة/الإلغاء'); reload(); }).catch(function (e) { toast(e.message, true); });
