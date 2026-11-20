@@ -1,9 +1,10 @@
 /**
  * موبايلي - Mobily — «تصفح منتجاتنا»: أقسام ومنتجات المحل.
  * الجداول: mobily.mc_shop_categories و mobily.mc_shop_products (server/shop.sql).
- *   fn 'shop'      → للعميل: catalog (الأقسام والمنتجات الظاهرة فقط)
+ *   fn 'shop'      → للعميل: catalog (الأقسام والمنتجات الظاهرة فقط)، quote (حساب السلة)، checkout، myOrders، cancelOrder
  *   fn 'shopAdmin' → للإدارة (صلاحية «الإعدادات»): list, saveCategory, orderCategories, deleteCategory,
- *                    saveProduct, deleteProduct, upload
+ *                    saveProduct, setProduct, deleteProduct, upload, orders, setOrderStatus, saveOrderNotes,
+ *                    promos, savePromo, setPromo, shopSettings, saveShopSettings
  * الرد بنفس شكل باقي النظام: { result: { ok, data } } أو { result: { ok: false, error } }
  */
 
@@ -70,11 +71,15 @@ async function catalog(sql) {
 }
 
 
-/* ---------------- الطلبات ---------------- */
-export const ORDER_STATUS = ['pending', 'approved', 'preparing', 'ready', 'completed', 'rejected', 'cancelled'];
+/* ---------------- السلة وإتمام الشراء والطلبات ----------------
+ * الأسعار والخصومات بتتحسب هنا في السيرفر من المنتجات وأكواد الخصم الحقيقية،
+ * ومفيش أي سعر جاي من التطبيق بيتصدّق. */
+export const ORDER_STATUS = ['pending', 'approved', 'preparing', 'ready', 'shipped', 'completed', 'rejected', 'cancelled'];
 const ORDER_COLS = `o.id, o.order_no, o.customer_id, o.customer_name, o.customer_phone, o.member_no, o.product_id, o.product_name, o.product_code,
   o.color, o.variant, o.qty, o.unit_price, o.total, o.notes, o.status, o.reject_reason, o.history, o.created_at, o.updated_at,
-  (select coalesce(p.images->0->>'t', p.images->0->>'u', '') from mobily.mc_shop_products p where p.id = o.product_id) as image`;
+  o.items, o.subtotal, o.product_discount, o.promo_code, o.promo_discount, o.shipping, o.method, o.delivery, o.address, o.admin_notes`;
+const money2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+const PROMO_CODE = /^[A-Za-z0-9_-]{3,30}$/;
 
 async function customerByToken(sql, token) {
   const t = T(token);
@@ -85,38 +90,178 @@ async function customerByToken(sql, token) {
   return r[0];
 }
 
+async function shopSettings(sql) {
+  const r = await sql.unsafe('select delivery_enabled, delivery_fee from mobily.mc_shop_settings where id = 1');
+  return r.length ? { delivery_enabled: !!r[0].delivery_enabled, delivery_fee: Number(r[0].delivery_fee) } : { delivery_enabled: false, delivery_fee: 0 };
+}
+
+// تنضيف المنتجات اللي جاية من السلة: نفس المنتج بنفس اللون والنوع يتجمع في سطر واحد
+function cleanItems(list) {
+  if (!Array.isArray(list) || !list.length) throw new Error('السلة فاضية');
+  const map = new Map();
+  for (const it of list.slice(0, 60)) {
+    const pid = T(it && it.product_id);
+    if (!UUID.test(pid)) continue;
+    const color = T(it.color).slice(0, 40), variant = T(it.variant).slice(0, 60);
+    const qty = Math.floor(Number(it.qty));
+    if (!(qty >= 1)) continue;
+    const k = pid + '|' + color + '|' + variant;
+    const prev = map.get(k);
+    if (prev) prev.qty += qty; else map.set(k, { product_id: pid, color, variant, qty });
+  }
+  const out = [...map.values()];
+  if (!out.length) throw new Error('السلة فاضية');
+  if (out.length > 30) throw new Error('أقصى عدد منتجات في الطلب الواحد 30');
+  for (const it of out) if (it.qty > 50) throw new Error('أقصى كمية من المنتج الواحد 50');
+  return out;
+}
+
+function promoStatusMsg(pr, today) {
+  if (!pr || !pr.active) return 'كود الخصم غير صحيح';
+  if (pr.starts_on && String(pr.starts_on) > today) return 'كود الخصم غير صحيح';
+  if (pr.ends_on && String(pr.ends_on) < today) return 'كود الخصم انتهت صلاحيته';
+  return '';
+}
+const dateStr = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : d ? String(d).slice(0, 10) : null);
+
+/**
+ * حساب الطلب: المنتجات بأسعارها الحالية + خصومات المنتجات + كود الخصم + الشحن.
+ * q = sql أو transaction. lockPromo = نقفل صف الكود وقت تأكيد الطلب علشان عدد مرات الاستخدام يتحسب صح.
+ */
+async function quote(q, customer, p, lockPromo) {
+  const items = cleanItems(p.items);
+  const ids = [...new Set(items.map((i) => i.product_id))];
+  const prods = await q.unsafe(`select p.id, p.name, p.code, p.price, p.old_price, p.available, p.hidden, p.colors, p.variants, p.category_id,
+      coalesce(p.images->0->>'t', p.images->0->>'u', '') as image,
+      (p.category_id is null or exists (select 1 from mobily.mc_shop_categories k where k.id = p.category_id and not k.hidden)) as cat_ok
+    from mobily.mc_shop_products p where p.id = any($1::uuid[])`, [ids]);
+  const byId = new Map(prods.map((r) => [r.id, r]));
+  const lines = items.map((it) => {
+    const pr = byId.get(it.product_id);
+    const line = { product_id: it.product_id, name: pr ? pr.name : '', code: pr ? pr.code || '' : '', image: pr ? pr.image : '', category_id: pr ? pr.category_id : null,
+      color: it.color, variant: it.variant, qty: it.qty, unit_price: 0, old_price: 0, line_subtotal: 0, line_discount: 0, line_total: 0, error: '' };
+    if (!pr || pr.hidden || !pr.cat_ok) { line.error = 'المنتج ده مش متاح دلوقتي'; return line; }
+    if (!pr.available) line.error = 'غير متوفر حالياً';
+    const colors = (Array.isArray(pr.colors) ? pr.colors : []).map((x) => x && x.n);
+    const variants = Array.isArray(pr.variants) ? pr.variants : [];
+    if (!line.error && colors.length && colors.indexOf(it.color) < 0) line.error = 'اختار اللون';
+    if (!line.error && !colors.length && it.color) line.error = 'اللون ده مبقاش متاح';
+    if (!line.error && variants.length && variants.indexOf(it.variant) < 0) line.error = 'اختار النوع';
+    if (!line.error && !variants.length && it.variant) line.error = 'النوع ده مبقاش متاح';
+    const price = Number(pr.price), old = Number(pr.old_price) > price ? Number(pr.old_price) : 0;
+    line.unit_price = price; line.old_price = old;
+    line.line_total = money2(price * it.qty);
+    line.line_subtotal = money2((old || price) * it.qty);
+    line.line_discount = money2(line.line_subtotal - line.line_total);
+    return line;
+  });
+  const good = lines.filter((l) => !l.error);
+  const subtotal = money2(good.reduce((s, l) => s + l.line_subtotal, 0));
+  const product_discount = money2(good.reduce((s, l) => s + l.line_discount, 0));
+  const items_total = money2(good.reduce((s, l) => s + l.line_total, 0));
+
+  // كود الخصم
+  let promo = null;
+  const code = T(p.promo);
+  if (code) {
+    promo = { code, ok: false, discount: 0, message: '' };
+    const today = (await q.unsafe("select to_char((now() at time zone 'Africa/Cairo')::date, 'YYYY-MM-DD') d"))[0].d;
+    const rows = PROMO_CODE.test(code)
+      ? await q.unsafe(`select * from mobily.mc_shop_promos where lower(code) = lower($1)${lockPromo ? ' for update' : ''}`, [code]) : [];
+    const pr = rows[0];
+    const st = promoStatusMsg(pr && Object.assign({}, pr, { starts_on: dateStr(pr.starts_on), ends_on: dateStr(pr.ends_on) }), today);
+    if (st) promo.message = st;
+    else {
+      promo.code = pr.code; promo.id = pr.id;
+      const [u] = await q.unsafe(`select count(*)::int n, count(*) filter (where customer_id = $2)::int mine from mobily.mc_shop_orders
+        where promo_id = $1 and status not in ('rejected','cancelled')`, [pr.id, customer.customer_id]);
+      const pids = Array.isArray(pr.product_ids) ? pr.product_ids : [], cids = Array.isArray(pr.category_ids) ? pr.category_ids : [];
+      const scoped = pids.length || cids.length;
+      let elig = good.filter((l) => !scoped || pids.indexOf(l.product_id) >= 0 || (l.category_id && cids.indexOf(l.category_id) >= 0));
+      if ((pr.max_uses > 0 && u.n >= pr.max_uses) || (pr.per_customer > 0 && u.mine >= pr.per_customer)) promo.message = 'تم الوصول إلى الحد الأقصى لاستخدام هذا الكود';
+      else if (!elig.length) promo.message = 'هذا الكود غير متاح على المنتجات الموجودة في سلتك';
+      else {
+        if (!pr.stackable) elig = elig.filter((l) => !(l.line_discount > 0));
+        const base = money2(elig.reduce((s, l) => s + l.line_total, 0));
+        if (!elig.length) promo.message = 'لا يمكن استخدام هذا الكود مع خصم آخر';
+        else if (Number(pr.min_order) > 0 && base < Number(pr.min_order)) promo.message = 'الكود ده محتاج طلب بقيمة ' + Number(pr.min_order) + ' على الأقل';
+        else {
+          let d = pr.kind === 'percent' ? base * Number(pr.value) / 100 : Number(pr.value);
+          if (pr.kind === 'percent' && Number(pr.max_discount) > 0) d = Math.min(d, Number(pr.max_discount));
+          d = money2(Math.min(d, base));
+          promo.ok = true; promo.discount = d; promo.message = 'تم تطبيق كود الخصم بنجاح';
+          promo.kind = pr.kind; promo.value = Number(pr.value);
+        }
+      }
+    }
+  }
+  const promo_discount = promo && promo.ok ? promo.discount : 0;
+  const set = await shopSettings(q);
+  const delivery = p.delivery === 'delivery' ? 'delivery' : 'pickup';
+  const shipping = delivery === 'delivery' && set.delivery_enabled ? money2(set.delivery_fee) : 0;
+  const total = money2(Math.max(0, items_total - promo_discount) + shipping);
+  return {
+    lines, subtotal, product_discount, items_total, promo, promo_discount, delivery, shipping, total,
+    delivery_enabled: set.delivery_enabled, delivery_fee: set.delivery_fee,
+    customer: { name: customer.name, phone: customer.phone, member_no: customer.member_no },
+  };
+}
+
+async function checkout(sql, c, p) {
+  const method = p.method === 'cart' ? 'cart' : 'buy_now';
+  const delivery = p.delivery === 'delivery' ? 'delivery' : 'pickup';
+  const address = T(p.address).slice(0, 500);
+  const notes = T(p.notes).slice(0, 500);
+  return sql.begin(async (tx) => {
+    const [cnt] = await tx.unsafe("select count(*)::int n from mobily.mc_shop_orders where customer_id = $1 and created_at > now() - interval '1 day'", [c.customer_id]);
+    if (cnt.n >= 20) throw new Error('وصلت للحد الأقصى للطلبات النهارده. كلم المحل لو محتاج حاجة.');
+    const qt = await quote(tx, c, p, true);
+    const badLine = qt.lines.find((l) => l.error);
+    if (badLine) throw new Error((badLine.name ? '«' + badLine.name + '»: ' : '') + badLine.error);
+    if (qt.promo && !qt.promo.ok) throw new Error(qt.promo.message);
+    if (delivery === 'delivery' && !qt.delivery_enabled) throw new Error('التوصيل مش متاح حالياً، اختار الاستلام من الفرع');
+    if (delivery === 'delivery' && address.length < 5) throw new Error('اكتب عنوان التوصيل');
+    if (p.expect_total !== undefined && p.expect_total !== null && money2(p.expect_total) !== qt.total) {
+      const e = new Error('الأسعار اتغيرت. راجع الإجمالي الجديد وأكد تاني.'); e.quote = qt; throw e;
+    }
+    const items = qt.lines.map((l) => ({ product_id: l.product_id, name: l.name, code: l.code, color: l.color, variant: l.variant, qty: l.qty,
+      unit_price: l.unit_price, old_price: l.old_price, line_subtotal: l.line_subtotal, line_discount: l.line_discount, line_total: l.line_total }));
+    const first = items[0];
+    const qtySum = items.reduce((s, i) => s + i.qty, 0);
+    const title = first.name + (items.length > 1 ? ' + ' + (items.length - 1) + ' منتج تاني' : '');
+    const hist = JSON.stringify([{ s: 'pending', at: new Date().toISOString(), by: 'customer' }]);
+    const [o] = await tx.unsafe(`insert into mobily.mc_shop_orders (order_no, customer_id, customer_name, customer_phone, member_no, product_id, product_name, product_code,
+        color, variant, qty, unit_price, total, notes, status, history, items, subtotal, product_discount, promo_id, promo_code, promo_discount, shipping, method, delivery, address)
+      values (nextval('mobily.mc_shop_order_no'), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending', $14::text::jsonb, $15::text::jsonb,
+        $16, $17, $18, $19, $20, $21, $22, $23, $24) returning id, order_no`,
+      [c.customer_id, c.name, c.phone, c.member_no, first.product_id, title, first.code || '', first.color, first.variant, qtySum, first.unit_price, qt.total, notes, hist,
+        JSON.stringify(items), qt.subtotal, qt.product_discount, qt.promo && qt.promo.ok ? qt.promo.id : null, qt.promo && qt.promo.ok ? qt.promo.code : '',
+        qt.promo_discount, qt.shipping, method, delivery, delivery === 'delivery' ? address : '']);
+    return { id: o.id, order_no: Number(o.order_no), total: qt.total };
+  });
+}
+
+async function withImages(sql, rows) {
+  const ids = new Set();
+  rows.forEach((o) => (Array.isArray(o.items) ? o.items : []).forEach((i) => { if (i && UUID.test(String(i.product_id || ''))) ids.add(i.product_id); }));
+  const map = new Map();
+  if (ids.size) {
+    const r = await sql.unsafe("select id, coalesce(images->0->>'t', images->0->>'u', '') im from mobily.mc_shop_products where id = any($1::uuid[])", [[...ids]]);
+    r.forEach((x) => map.set(x.id, x.im));
+  }
+  return rows.map((o) => publicOrder(o, map));
+}
+
 async function customerShop(sql, action, p) {
   const c = await customerByToken(sql, p.token);
   if (action === 'myOrders') {
     const rows = await sql.unsafe(`select ${ORDER_COLS} from mobily.mc_shop_orders o where o.customer_id = $1 order by o.created_at desc limit 200`, [c.customer_id]);
-    return rows.map(publicOrder);
+    return withImages(sql, rows);
   }
-  if (action === 'order') {
-    if (!UUID.test(T(p.product_id))) throw new Error('المنتج ده مش متاح دلوقتي');
-    const [pr] = await sql.unsafe(`select p.id, p.name, p.code, p.price, p.available, p.hidden, p.colors, p.variants,
-        (p.category_id is null or exists (select 1 from mobily.mc_shop_categories k where k.id = p.category_id and not k.hidden)) as cat_ok
-      from mobily.mc_shop_products p where p.id = $1`, [T(p.product_id)]);
-    if (!pr || pr.hidden || !pr.cat_ok) throw new Error('المنتج ده مش متاح دلوقتي');
-    if (!pr.available) throw new Error('المنتج ده غير متوفر حالياً، مينفعش يتطلب');
-    const colors = (Array.isArray(pr.colors) ? pr.colors : []).map((x) => x.n);
-    const variants = Array.isArray(pr.variants) ? pr.variants : [];
-    const color = T(p.color), variant = T(p.variant);
-    if (colors.length && colors.indexOf(color) < 0) throw new Error('اختار اللون');
-    if (!colors.length && color) throw new Error('اللون غير صحيح');
-    if (variants.length && variants.indexOf(variant) < 0) throw new Error('اختار النوع');
-    if (!variants.length && variant) throw new Error('النوع غير صحيح');
-    const qty = Math.floor(Number(p.qty));
-    if (!(qty >= 1 && qty <= 50)) throw new Error('الكمية لازم تكون من 1 لـ 50');
-    const notes = T(p.notes).slice(0, 500);
-    const [cnt] = await sql.unsafe("select count(*)::int n from mobily.mc_shop_orders where customer_id = $1 and created_at > now() - interval '1 day'", [c.customer_id]);
-    if (cnt.n >= 20) throw new Error('وصلت للحد الأقصى للطلبات النهارده. كلم المحل لو محتاج حاجة.');
-    const price = Number(pr.price), total = Math.round(price * qty * 100) / 100;
-    const hist = JSON.stringify([{ s: 'pending', at: new Date().toISOString(), by: 'customer' }]);
-    const [o] = await sql.unsafe(`insert into mobily.mc_shop_orders (order_no, customer_id, customer_name, customer_phone, member_no, product_id, product_name, product_code,
-        color, variant, qty, unit_price, total, notes, status, history)
-      values (nextval('mobily.mc_shop_order_no'), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending', $14::text::jsonb) returning id, order_no`,
-      [c.customer_id, c.name, c.phone, c.member_no, pr.id, pr.name, pr.code || '', color, variant, qty, price, total, notes, hist]);
-    return { id: o.id, order_no: Number(o.order_no), total };
+  if (action === 'quote') return quote(sql, c, p, false);
+  if (action === 'checkout') return checkout(sql, c, p);
+  if (action === 'order') { // النسخة القديمة من الصفحة (منتج واحد)
+    return checkout(sql, c, { items: [{ product_id: p.product_id, color: p.color, variant: p.variant, qty: p.qty }], notes: p.notes, method: 'buy_now' });
   }
   if (action === 'cancelOrder') {
     if (!UUID.test(T(p.id))) throw new Error('الطلب غير موجود');
@@ -130,14 +275,48 @@ async function customerShop(sql, action, p) {
   throw new Error('طلب غير معروف');
 }
 
-function publicOrder(o) {
+function publicOrder(o, imgs) {
+  const items = (Array.isArray(o.items) ? o.items : []).map((i) => ({
+    product_id: i.product_id, name: i.name, code: i.code || '', color: i.color || '', variant: i.variant || '', qty: Number(i.qty),
+    unit_price: Number(i.unit_price), old_price: Number(i.old_price || 0), line_subtotal: Number(i.line_subtotal || 0),
+    line_discount: Number(i.line_discount || 0), line_total: Number(i.line_total || 0), image: (imgs && imgs.get(i.product_id)) || '',
+  }));
   return {
     id: o.id, order_no: Number(o.order_no), product_id: o.product_id, product_name: o.product_name, product_code: o.product_code,
     color: o.color, variant: o.variant, qty: o.qty, unit_price: Number(o.unit_price), total: Number(o.total), notes: o.notes,
-    status: o.status, reject_reason: o.reject_reason, image: o.image || '', created_at: o.created_at, updated_at: o.updated_at,
+    items, subtotal: Number(o.subtotal), product_discount: Number(o.product_discount), promo_code: o.promo_code || '', promo_discount: Number(o.promo_discount),
+    shipping: Number(o.shipping), method: o.method, delivery: o.delivery, address: o.address || '',
+    status: o.status, reject_reason: o.reject_reason, image: items[0] ? items[0].image : '', created_at: o.created_at, updated_at: o.updated_at,
     history: (Array.isArray(o.history) ? o.history : []).map((h) => ({ s: h.s, at: h.at })),
   };
 }
+
+/* ---------------- أكواد الخصم (الإدارة) ---------------- */
+function cleanPromo(p) {
+  const code = T(p.code).toUpperCase();
+  if (!PROMO_CODE.test(code)) throw new Error('الكود لازم يكون من 3 لـ 30 حرف إنجليزي أو رقم (من غير مسافات)');
+  const kind = p.kind === 'fixed' ? 'fixed' : 'percent';
+  const value = num(p.value, 'قيمة الخصم');
+  if (!(value > 0)) throw new Error('اكتب قيمة الخصم');
+  if (kind === 'percent' && value > 100) throw new Error('النسبة لازم تكون من 1 لـ 100');
+  const d = (v, n) => { const s = T(v); if (!s) return null; if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new Error(n + ' غير صحيح'); return s; };
+  const starts_on = d(p.starts_on, 'تاريخ البداية'), ends_on = d(p.ends_on, 'تاريخ النهاية');
+  if (starts_on && ends_on && ends_on < starts_on) throw new Error('تاريخ النهاية لازم يكون بعد تاريخ البداية');
+  const int = (v, n) => { const x = num(v, n); if (x !== Math.floor(x)) throw new Error(n + ' لازم يكون رقم صحيح'); return Math.min(x, 1000000); };
+  return {
+    code, kind, value,
+    min_order: num(p.min_order, 'الحد الأدنى للطلب'),
+    max_discount: kind === 'percent' ? num(p.max_discount, 'أقصى خصم') : 0,
+    starts_on, ends_on,
+    max_uses: int(p.max_uses, 'عدد مرات الاستخدام'),
+    per_customer: int(p.per_customer, 'عدد مرات الاستخدام لكل عميل'),
+    active: p.active !== false,
+    product_ids: (Array.isArray(p.product_ids) ? p.product_ids : []).map(T).filter((x) => UUID.test(x)).slice(0, 500),
+    category_ids: (Array.isArray(p.category_ids) ? p.category_ids : []).map(T).filter((x) => UUID.test(x)).slice(0, 100),
+    stackable: p.stackable !== false,
+  };
+}
+
 
 /**
  * ctx: { sql, verifyAdmin: async (token) => user|throws, upload: async (dataUrl) => url }
@@ -149,7 +328,7 @@ export async function handleShop(body, ctx) {
   try {
     if (fn === 'shop') {
       if (args[0] === 'catalog') return ok(await catalog(sql));
-      if (['order', 'myOrders', 'cancelOrder'].indexOf(args[0]) >= 0) return ok(await customerShop(sql, args[0], args[1] && typeof args[1] === 'object' ? args[1] : {}));
+      if (['order', 'quote', 'checkout', 'myOrders', 'cancelOrder'].indexOf(args[0]) >= 0) return ok(await customerShop(sql, args[0], args[1] && typeof args[1] === 'object' ? args[1] : {}));
       return bad('طلب غير معروف');
     }
     // ---------- الإدارة ----------
@@ -170,9 +349,10 @@ export async function handleShop(body, ctx) {
 
     if (action === 'orders') {
       const rows = await sql.unsafe(`select ${ORDER_COLS} from mobily.mc_shop_orders o order by o.created_at desc limit 2000`);
-      return ok(rows.map((o) => Object.assign(publicOrder(o), {
-        customer_id: o.customer_id, customer_name: o.customer_name, customer_phone: o.customer_phone, member_no: o.member_no,
-        history: Array.isArray(o.history) ? o.history : [],
+      const list = await withImages(sql, rows);
+      return ok(list.map((o, i) => Object.assign(o, {
+        customer_id: rows[i].customer_id, customer_name: rows[i].customer_name, customer_phone: rows[i].customer_phone, member_no: rows[i].member_no,
+        admin_notes: rows[i].admin_notes || '', history: Array.isArray(rows[i].history) ? rows[i].history : [],
       })));
     }
 
@@ -183,13 +363,66 @@ export async function handleShop(body, ctx) {
       const reason = T(p.reason).slice(0, 300);
       if (st === 'rejected' && !reason) return bad('اكتب سبب الرفض علشان يظهر للعميل');
       const h = JSON.stringify([{ s: st, at: new Date().toISOString(), by: user.name || '' }]);
-      const r = await sql.unsafe(`update mobily.mc_shop_orders set status = $2, reject_reason = case when $2 = 'rejected' then $3 else reject_reason end,
+      const r = await sql.unsafe(`update mobily.mc_shop_orders set status = $2,
+          reject_reason = case when $2 in ('rejected','cancelled') then $3 else reject_reason end,
           updated_at = now(), history = history || $4::text::jsonb where id = $1 and status <> $2 returning id`, [T(p.id), st, reason, h]);
       if (!r.length) {
         const e = await sql.unsafe('select 1 from mobily.mc_shop_orders where id = $1', [T(p.id)]);
         return e.length ? bad('الطلب بالفعل في الحالة دي') : bad('الطلب غير موجود');
       }
       return ok({ done: true });
+    }
+
+    if (action === 'saveOrderNotes') {
+      if (!UUID.test(T(p.id))) return bad('الطلب غير موجود');
+      const r = await sql.unsafe('update mobily.mc_shop_orders set admin_notes = $2, updated_at = now() where id = $1 returning id', [T(p.id), T(p.notes).slice(0, 1000)]);
+      if (!r.length) return bad('الطلب غير موجود');
+      return ok({ done: true });
+    }
+
+    if (action === 'promos') {
+      const rows = await sql.unsafe(`select pr.id, pr.code, pr.kind, pr.value, pr.min_order, pr.max_discount,
+          to_char(pr.starts_on, 'YYYY-MM-DD') starts_on, to_char(pr.ends_on, 'YYYY-MM-DD') ends_on, pr.max_uses, pr.per_customer, pr.active,
+          pr.product_ids, pr.category_ids, pr.stackable, pr.created_at,
+          to_char((now() at time zone 'Africa/Cairo')::date, 'YYYY-MM-DD') today,
+          (select count(*)::int from mobily.mc_shop_orders o where o.promo_id = pr.id and o.status not in ('rejected','cancelled')) uses,
+          (select coalesce(sum(o.promo_discount), 0) from mobily.mc_shop_orders o where o.promo_id = pr.id and o.status not in ('rejected','cancelled')) total_discount
+        from mobily.mc_shop_promos pr order by pr.created_at desc`);
+      return ok(rows.map((r) => Object.assign({}, r, { value: Number(r.value), min_order: Number(r.min_order), max_discount: Number(r.max_discount), total_discount: Number(r.total_discount) })));
+    }
+
+    if (action === 'savePromo') {
+      const v = cleanPromo(p);
+      const dup = await sql.unsafe('select 1 from mobily.mc_shop_promos where lower(code) = lower($1) and id::text <> $2', [v.code, T(p.id)]);
+      if (dup.length) return bad('فيه كود خصم تاني بنفس الاسم');
+      const vals = [v.code, v.kind, v.value, v.min_order, v.max_discount, v.starts_on, v.ends_on, v.max_uses, v.per_customer, v.active,
+        JSON.stringify(v.product_ids), JSON.stringify(v.category_ids), v.stackable];
+      if (p.id) {
+        if (!UUID.test(T(p.id))) return bad('الكود غير موجود');
+        const r = await sql.unsafe(`update mobily.mc_shop_promos set code=$1, kind=$2, value=$3, min_order=$4, max_discount=$5, starts_on=$6::date, ends_on=$7::date,
+          max_uses=$8, per_customer=$9, active=$10, product_ids=$11::text::jsonb, category_ids=$12::text::jsonb, stackable=$13, updated_at=now() where id=$14 returning id`, [...vals, T(p.id)]);
+        if (!r.length) return bad('الكود غير موجود');
+        return ok({ id: r[0].id });
+      }
+      const r = await sql.unsafe(`insert into mobily.mc_shop_promos (code, kind, value, min_order, max_discount, starts_on, ends_on, max_uses, per_customer, active, product_ids, category_ids, stackable)
+        values ($1,$2,$3,$4,$5,$6::date,$7::date,$8,$9,$10,$11::text::jsonb,$12::text::jsonb,$13) returning id`, vals);
+      return ok({ id: r[0].id });
+    }
+
+    if (action === 'setPromo') {
+      if (!UUID.test(T(p.id))) return bad('الكود غير موجود');
+      const r = await sql.unsafe('update mobily.mc_shop_promos set active=$1, updated_at=now() where id=$2 returning id', [!!p.active, T(p.id)]);
+      if (!r.length) return bad('الكود غير موجود');
+      return ok({ done: true });
+    }
+
+    if (action === 'shopSettings') return ok(await shopSettings(sql));
+
+    if (action === 'saveShopSettings') {
+      const fee = num(p.delivery_fee, 'مصاريف التوصيل');
+      await sql.unsafe(`insert into mobily.mc_shop_settings (id, delivery_enabled, delivery_fee, updated_at) values (1, $1, $2, now())
+        on conflict (id) do update set delivery_enabled = excluded.delivery_enabled, delivery_fee = excluded.delivery_fee, updated_at = now()`, [!!p.delivery_enabled, fee]);
+      return ok(await shopSettings(sql));
     }
 
     if (action === 'saveCategory') {
