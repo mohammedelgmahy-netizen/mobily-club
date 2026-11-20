@@ -565,7 +565,25 @@
   /* ---------- إتمام الشراء ---------- */
   function renderCheckout(mode) {
     if (mode === 'now' && !BUY) { history.replaceState({ shopIn: true }, '', location.pathname + location.search + '#shop/cart'); lastHash = location.hash; return renderCart(); }
-    var CO = { delivery: 'pickup', address: '', notes: '' };
+    var CO = { delivery: 'pickup', address: '', notes: '', branch: '', editAddr: false };
+    // التوصيل: العنوان المسجل في حساب العميل (أو يضيفه/يعدله ويتحفظ في حسابه)
+    function addrBlock() {
+      if (Q.saved_address && !CO.editAddr) return '<div class="pchip" style="margin-top:12px;border-color:rgba(34,211,238,.5);background:rgba(34,211,238,.06)"><span style="color:var(--text);white-space:pre-line">📍 ' + esc(Q.saved_address) + '</span></div>' +
+        '<button type="button" class="btn ghost sm" id="coAddrEd" style="margin-top:8px">✏️ تعديل العنوان</button>';
+      return (Q.saved_address ? '' : '<div class="small" style="margin-top:12px;color:#FBBF24;font-weight:700">مفيش عنوان مسجل في حسابك. أضف عنوانك علشان التوصيل.</div>') +
+        '<label style="margin-top:10px">عنوان التوصيل *</label><textarea id="coAddr" rows="2" maxlength="500" placeholder="المنطقة، الشارع، رقم العمارة، علامة مميزة">' + esc(CO.address || Q.saved_address) + '</textarea>' +
+        '<div id="coAddrErr"></div><div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="btn sm" id="coAddrSave">حفظ العنوان</button>' +
+        (Q.saved_address ? '<button type="button" class="btn ghost sm" id="coAddrNo">إلغاء</button>' : '') + '</div>';
+    }
+    // الاستلام: الفرع (ولو فيه أكتر من فرع العميل يختار)
+    function branchBlock() {
+      var brs = Q.branches || [];
+      if (!brs.length) return '<div class="err" style="margin-top:10px">مفيش فرع متاح للاستلام حالياً</div>';
+      if (brs.length === 1) { CO.branch = brs[0].id; return '<div style="margin-top:12px;font-weight:700">🏪 ' + esc(brs[0].name) + '</div>' + (brs[0].address ? '<div class="small muted">' + esc(brs[0].address) + '</div>' : '') + (brs[0].phone ? '<div class="small muted" dir="ltr" style="text-align:right">' + esc(brs[0].phone) + '</div>' : ''); }
+      return '<h4 style="margin:12px 0 8px;font-size:14px">اختار الفرع</h4><div class="co-opts">' + brs.map(function (br) {
+        return '<button type="button" data-br="' + esc(br.id) + '"' + (CO.branch === br.id ? ' class="on"' : '') + '>🏪 ' + esc(br.name) + (br.address ? '<small>' + esc(br.address) + '</small>' : '') + '</button>';
+      }).join('') + '</div>';
+    }
     function items() { return mode === 'now' ? [BUY].concat(WITH_CART ? cartGet() : []) : cartGet(); }
     if (!items().length) { history.replaceState({ shopIn: true }, '', location.pathname + location.search + '#shop/cart'); lastHash = location.hash; return renderCart(); }
     view.innerHTML = topBar('إتمام الشراء', false, true) + '<div id="coBody"><div class="ol"><div class="sk" style="height:120px"></div><div class="sk" style="height:180px"></div></div></div>';
@@ -586,11 +604,10 @@
       var row = function (k, v) { return '<div class="od-row"><span>' + k + '</span><span>' + v + '</span></div>'; };
       b.innerHTML = '<div class="ol">' +
         '<div class="pd-sec" style="margin:0"><h3>👤 بياناتك</h3>' + row('الاسم', esc(Q.customer.name)) + row('رقم الهاتف', '<span dir="ltr">' + esc(Q.customer.phone) + '</span>') + (Q.customer.member_no ? row('رقم العضوية', esc(Q.customer.member_no)) : '') + '</div>' +
-        '<div class="pd-sec" style="margin:0"><h3>📍 طريقة الاستلام</h3>' + (Q.delivery_enabled
-          ? '<div class="co-opts"><button type="button" data-dl="pickup"' + (CO.delivery === 'pickup' ? ' class="on"' : '') + '>🏬 استلام من الفرع<small>من غير مصاريف</small></button>' +
-            '<button type="button" data-dl="delivery"' + (CO.delivery === 'delivery' ? ' class="on"' : '') + '>🛵 توصيل<small>' + (Q.delivery_fee > 0 ? 'مصاريف الشحن ' + money(Q.delivery_fee) : 'مجاناً') + '</small></button></div>' +
-            (CO.delivery === 'delivery' ? '<label style="margin-top:12px">عنوان التوصيل *</label><textarea id="coAddr" rows="2" maxlength="500" placeholder="المنطقة، الشارع، رقم العمارة، علامة مميزة">' + esc(CO.address) + '</textarea>' : '')
-          : '<div style="font-weight:700">🏬 استلام من الفرع</div>') + '</div>' +
+        '<div class="pd-sec" style="margin:0"><h3>📍 طريقة استلام الطلب</h3><div class="co-opts">' +
+          (Q.delivery_enabled ? '<button type="button" data-dl="delivery"' + (CO.delivery === 'delivery' ? ' class="on"' : '') + '>🚚 التوصيل إلى عنواني<small>' + (Q.delivery_fee > 0 ? 'رسوم التوصيل ' + money(Q.delivery_fee) : 'من غير رسوم توصيل') + '</small></button>' : '') +
+          '<button type="button" data-dl="pickup"' + (CO.delivery === 'pickup' ? ' class="on"' : '') + '>🏪 الاستلام من الفرع<small>من غير رسوم توصيل</small></button></div>' +
+          (CO.delivery === 'delivery' ? addrBlock() : branchBlock()) + '</div>' +
         '<div class="pd-sec" style="margin:0"><h3>🛍️ المنتجات (' + Q.lines.reduce(function (s, l) { return s + l.qty; }, 0) + ')</h3>' + Q.lines.map(function (l) {
           return '<div class="co-it"><div class="t">' + lineImg(l) + '</div><div class="m"><b>' + esc(l.name || 'منتج مش متاح') + '</b>' +
             '<small>' + esc([l.code, l.color, l.variant].filter(Boolean).join(' · ')) + '</small>' +
@@ -605,6 +622,14 @@
         '<button type="button" class="order-btn" id="coSend" style="width:100%"' + (bad ? ' disabled' : '') + '>تأكيد الطلب · ' + money(Q.total) + '</button>' +
         '<p class="small muted" style="text-align:center;margin:10px 0 0">الطلب بيتراجع من المحل، وتقدر تتابعه من «طلباتي»</p></div>';
       Array.prototype.forEach.call(b.querySelectorAll('[data-dl]'), function (x) { x.onclick = function () { if (CO.delivery === x.dataset.dl) return; CO.delivery = x.dataset.dl; refresh(); }; });
+      Array.prototype.forEach.call(b.querySelectorAll('[data-br]'), function (x) { x.onclick = function () { keep(); CO.branch = x.dataset.br; draw(null); }; });
+      var ae = document.getElementById('coAddrEd'); if (ae) ae.onclick = function () { keep(); CO.editAddr = true; CO.address = Q.saved_address; draw(null); };
+      var an = document.getElementById('coAddrNo'); if (an) an.onclick = function () { keep(); CO.editAddr = false; CO.address = ''; draw(null); };
+      var as = document.getElementById('coAddrSave'); if (as) as.onclick = function () {
+        keep(); as.disabled = true;
+        rpc(['saveAddress', { token: token(), address: CO.address }]).then(function (r) { Q.saved_address = r.address; CO.editAddr = false; CO.address = ''; draw(null); })
+          .catch(function (e) { as.disabled = false; document.getElementById('coAddrErr').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+      };
       var w = document.getElementById('coWith'); if (w) w.onchange = function () { WITH_CART = w.checked; refresh(); };
       bindPromo(b, function (tried) { refresh(tried); });
       if (!bad) document.getElementById('coSend').onclick = send;
@@ -612,10 +637,11 @@
     function send() {
       keep();
       var errBox = document.getElementById('coErr');
-      if (CO.delivery === 'delivery' && CO.address.trim().length < 5) { errBox.innerHTML = '<div class="err">اكتب عنوان التوصيل</div>'; document.getElementById('coAddr').focus(); return; }
+      if (CO.delivery === 'delivery' && (CO.editAddr || !Q.saved_address)) { errBox.innerHTML = '<div class="err">احفظ عنوان التوصيل الأول</div>'; var ad = document.getElementById('coAddr'); if (ad) ad.focus(); return; }
+      if (CO.delivery === 'pickup' && (Q.branches || []).length > 1 && !CO.branch) { errBox.innerHTML = '<div class="err">اختار الفرع اللي هتستلم منه</div>'; return; }
       var btn = document.getElementById('coSend'); btn.disabled = true; btn.textContent = 'جاري إرسال الطلب…';
       var usedCart = mode === 'cart' || WITH_CART, its = items();
-      rpc(['checkout', { token: token(), items: its, promo: PROMO, delivery: CO.delivery, address: CO.address, notes: CO.notes, method: mode === 'cart' ? 'cart' : 'buy_now', expect_total: Q.total }]).then(function (r) {
+      rpc(['checkout', { token: token(), items: its, promo: PROMO, delivery: CO.delivery, address: CO.delivery === 'delivery' ? Q.saved_address : '', branch_id: CO.branch, notes: CO.notes, method: mode === 'cart' ? 'cart' : 'buy_now', expect_total: Q.total }]).then(function (r) {
         if (usedCart) cartSet([]);
         BUY = null; WITH_CART = false; PROMO = ''; ORDERS = null;
         history.replaceState({ shopIn: true }, '', location.pathname + location.search + '#shop/orders/' + r.id); lastHash = location.hash;
@@ -680,7 +706,7 @@
       '<div class="pd-sec" style="margin:0"><div class="od-row"><span>الحالة</span><span>' + stBadge(x.status) + '</span></div>' +
       ((x.status === 'rejected' || x.status === 'cancelled') && x.reject_reason ? row(x.status === 'rejected' ? 'سبب الرفض' : 'سبب الإلغاء', '<b style="color:#F87171">' + esc(x.reject_reason) + '</b>') : '') +
       row('رقم الطلب', '#' + x.order_no) + row('تاريخ الطلب', esc(dt(x.created_at))) +
-      row('طريقة الاستلام', x.delivery === 'delivery' ? '🛵 توصيل' : '🏬 استلام من الفرع') + (x.delivery === 'delivery' && x.address ? row('العنوان', esc(x.address)) : '') + '</div>' +
+      row('طريقة الاستلام', x.delivery === 'delivery' ? '🚚 التوصيل إلى عنواني' : '🏪 الاستلام من الفرع') + (x.delivery !== 'delivery' && x.branch_name ? row('الفرع', esc(x.branch_name)) : '') + (x.delivery === 'delivery' && x.address ? row('العنوان', esc(x.address)) : '') + '</div>' +
       '<div class="pd-sec" style="margin:0"><h3>🛍️ المنتجات</h3>' + its.map(function (l) {
         return '<div class="co-it"><div class="t">' + (l.image ? img(l.image, '') : '📦') + '</div><div class="m"><b>' + esc(l.name) + '</b>' +
           '<small>' + esc([l.code, l.color, l.variant].filter(Boolean).join(' · ')) + '</small><small>' + l.qty + ' × ' + money(l.unit_price) + (l.old_price ? ' <s>' + money(l.old_price) + '</s>' : '') + '</small></div>' +

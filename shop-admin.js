@@ -393,7 +393,9 @@
         '<div class="ln"><b>' + esc(o.product_name) + '</b>' + (o.items.length === 1 && o.product_code ? ' <span class="sp-code">' + esc(o.product_code) + '</span>' : '') + '</div>' +
         '<div class="ln">' + esc(o.customer_name) + ' · <span style="direction:ltr;unicode-bidi:isolate">' + esc(o.customer_phone) + '</span></div>' +
         '<div class="ln mu">' + (o.items.length > 1 ? o.items.length + ' منتجات · ' : '') + 'الكمية ' + o.qty + (o.items.length === 1 && o.color ? ' · ' + esc(o.color) : '') + (o.items.length === 1 && o.variant ? ' · ' + esc(o.variant) : '') +
-        ' · الإجمالي <b>' + money(o.total) + '</b>' + (o.promo_code ? ' <span class="so-promo">🏷️ ' + esc(o.promo_code) + '</span>' : '') + (o.delivery === 'delivery' ? ' · 🛵 توصيل' : '') + '</div>' +
+        ' · الإجمالي <b>' + money(o.total) + '</b>' + (o.promo_code ? ' <span class="so-promo">🏷️ ' + esc(o.promo_code) + '</span>' : '') + '</div>' +
+        '<div class="ln" style="font-weight:700">' + (o.delivery === 'delivery' ? '🚚 توصيل (Delivery) · ' + esc(o.address || '—') + ' · رسوم التوصيل ' + money(o.shipping)
+          : '🏪 استلام من الفرع (Branch Pickup)' + (o.branch_name ? ' · ' + esc(o.branch_name) : '')) + '</div>' +
         '<div class="ln mu">' + esc(odt(o.created_at)) + (o.notes ? ' · 📝 ' + esc(o.notes.length > 50 ? o.notes.slice(0, 50) + '…' : o.notes) : '') + '</div></div></div>';
     }).join('');
     $all('[data-oid]', box).forEach(function (el) { el.onclick = function () { orderDetails(el.dataset.oid); }; });
@@ -409,7 +411,8 @@
       ((o.status === 'rejected' || o.status === 'cancelled') && o.reject_reason ? r(o.status === 'rejected' ? 'سبب الرفض' : 'سبب الإلغاء', esc(o.reject_reason)) : '') +
       r('رقم الطلب', '#' + o.order_no) + r('تاريخ الطلب', esc(odt(o.created_at))) + r('طريقة الشراء', o.method === 'cart' ? 'من السلة' : 'اشترِ الآن') +
       r('اسم العميل', esc(o.customer_name)) + r('رقم الهاتف', '<span style="direction:ltr">' + esc(o.customer_phone) + '</span>') + (o.member_no ? r('رقم العضوية', esc(o.member_no)) : '') +
-      r('طريقة الاستلام', o.delivery === 'delivery' ? '🛵 توصيل' : '🏬 استلام من الفرع') + (o.delivery === 'delivery' ? r('العنوان', esc(o.address || '—')) : '') + '</div>' +
+      r('طريقة الاستلام', o.delivery === 'delivery' ? '🚚 توصيل (Delivery)' : '🏪 استلام من الفرع (Branch Pickup)') +
+      (o.delivery === 'delivery' ? r('عنوان التوصيل', esc(o.address || '—')) + r('رسوم التوصيل', money(o.shipping)) : r('الفرع', esc(o.branch_name || '—'))) + '</div>' +
       '<h3 style="margin:14px 0 4px">المنتجات</h3><div class="so-its">' + o.items.map(function (l) {
         return '<div class="it"><div class="th">' + (l.image ? img(l.image) : '📦') + '</div><div class="m"><b>' + esc(l.name) + '</b>' +
           '<small>' + (l.code ? '<span class="sp-code">' + esc(l.code) + '</span> ' : '') + esc([l.color, l.variant].filter(Boolean).join(' · ')) + '</small><br><small>' + l.qty + ' × ' + money(l.unit_price) +
