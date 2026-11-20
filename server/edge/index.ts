@@ -5,7 +5,7 @@ import postgres from 'npm:postgres@3.4.5';
 import * as crypto from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import { handle } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@407cd850a336c7d8027b7c301cf160dd47c5bda6/server/bundle.js';
-import { handleShop } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@8491dadf0d3020dad0f11408c34679b98473e519/server/shop.js';
+import { handleShop } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@180a5e7729f6ed8a4743336f0de9ec185493d694/server/shop.js';
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2, idle_timeout: 60 });
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
