@@ -1,7 +1,7 @@
 /**
  * موبايلي - Mobily — «تصفح منتجاتنا»: أقسام ومنتجات المحل.
  * الجداول: mobily.mc_shop_categories و mobily.mc_shop_products (server/shop.sql).
- *   fn 'shop'      → للعميل: catalog (الأقسام والمنتجات الظاهرة فقط)، quote (حساب السلة)، checkout، myOrders، cancelOrder
+ *   fn 'shop'      → للعميل: catalog (الأقسام والمنتجات الظاهرة فقط)، quote (حساب السلة)، saveAddress، checkout، myOrders، cancelOrder
  *   fn 'shopAdmin' → للإدارة (صلاحية «الإعدادات»): list, saveCategory, orderCategories, deleteCategory,
  *                    saveProduct, setProduct, deleteProduct, upload, orders, setOrderStatus, saveOrderNotes,
  *                    promos, savePromo, setPromo, shopSettings, saveShopSettings
@@ -77,7 +77,7 @@ async function catalog(sql) {
 export const ORDER_STATUS = ['pending', 'approved', 'preparing', 'ready', 'shipped', 'completed', 'rejected', 'cancelled'];
 const ORDER_COLS = `o.id, o.order_no, o.customer_id, o.customer_name, o.customer_phone, o.member_no, o.product_id, o.product_name, o.product_code,
   o.color, o.variant, o.qty, o.unit_price, o.total, o.notes, o.status, o.reject_reason, o.history, o.created_at, o.updated_at,
-  o.items, o.subtotal, o.product_discount, o.promo_code, o.promo_discount, o.shipping, o.method, o.delivery, o.address, o.admin_notes`;
+  o.items, o.subtotal, o.product_discount, o.promo_code, o.promo_discount, o.shipping, o.method, o.delivery, o.address, o.admin_notes, o.branch_id, o.branch_name`;
 const money2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 const PROMO_CODE = /^[A-Za-z0-9_-]{3,30}$/;
 
@@ -88,6 +88,15 @@ async function customerByToken(sql, token) {
   if (!r.length) throw new Error('افتح الكارت بتاعك الأول علشان تقدر تطلب');
   if (r[0].status !== 'active') throw new Error('عضويتك موقوفة حالياً. تواصل مع المحل.');
   return r[0];
+}
+
+async function branches(q) {
+  const r = await q.unsafe("select branch_id, name, address, phone from mobily.mc_branches where active is true order by name");
+  return r.map((b) => ({ id: b.branch_id, name: b.name, address: b.address || '', phone: b.phone || '' }));
+}
+async function savedAddress(q, customerId) {
+  const r = await q.unsafe('select address from mobily.mc_shop_addresses where customer_id = $1', [customerId]);
+  return r.length ? r[0].address : '';
 }
 
 async function shopSettings(sql) {
@@ -200,7 +209,9 @@ async function quote(q, customer, p, lockPromo) {
   const delivery = p.delivery === 'delivery' ? 'delivery' : 'pickup';
   const shipping = delivery === 'delivery' && set.delivery_enabled ? money2(set.delivery_fee) : 0;
   const total = money2(Math.max(0, items_total - promo_discount) + shipping);
+  const brs = await branches(q);
   return {
+    branches: brs, saved_address: await savedAddress(q, customer.customer_id),
     lines, subtotal, product_discount, items_total, promo, promo_discount, delivery, shipping, total,
     delivery_enabled: set.delivery_enabled, delivery_fee: set.delivery_fee,
     customer: { name: customer.name, phone: customer.phone, member_no: customer.member_no },
@@ -220,7 +231,12 @@ async function checkout(sql, c, p) {
     if (badLine) throw new Error((badLine.name ? '«' + badLine.name + '»: ' : '') + badLine.error);
     if (qt.promo && !qt.promo.ok) throw new Error(qt.promo.message);
     if (delivery === 'delivery' && !qt.delivery_enabled) throw new Error('التوصيل مش متاح حالياً، اختار الاستلام من الفرع');
-    if (delivery === 'delivery' && address.length < 5) throw new Error('اكتب عنوان التوصيل');
+    if (delivery === 'delivery' && address.length < 5) throw new Error('أضف عنوان التوصيل الأول');
+    let branch = null;
+    if (delivery === 'pickup') {
+      branch = qt.branches.find((b) => b.id === T(p.branch_id)) || (qt.branches.length === 1 ? qt.branches[0] : null);
+      if (!branch) throw new Error(qt.branches.length ? 'اختار الفرع اللي هتستلم منه' : 'مفيش فرع متاح للاستلام حالياً. كلم المحل.');
+    }
     if (p.expect_total !== undefined && p.expect_total !== null && money2(p.expect_total) !== qt.total) {
       const e = new Error('الأسعار اتغيرت. راجع الإجمالي الجديد وأكد تاني.'); e.quote = qt; throw e;
     }
@@ -231,12 +247,13 @@ async function checkout(sql, c, p) {
     const title = first.name + (items.length > 1 ? ' + ' + (items.length - 1) + ' منتج تاني' : '');
     const hist = JSON.stringify([{ s: 'pending', at: new Date().toISOString(), by: 'customer' }]);
     const [o] = await tx.unsafe(`insert into mobily.mc_shop_orders (order_no, customer_id, customer_name, customer_phone, member_no, product_id, product_name, product_code,
-        color, variant, qty, unit_price, total, notes, status, history, items, subtotal, product_discount, promo_id, promo_code, promo_discount, shipping, method, delivery, address)
+        color, variant, qty, unit_price, total, notes, status, history, items, subtotal, product_discount, promo_id, promo_code, promo_discount, shipping, method, delivery, address,
+        branch_id, branch_name)
       values (nextval('mobily.mc_shop_order_no'), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending', $14::text::jsonb, $15::text::jsonb,
-        $16, $17, $18, $19, $20, $21, $22, $23, $24) returning id, order_no`,
+        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26) returning id, order_no`,
       [c.customer_id, c.name, c.phone, c.member_no, first.product_id, title, first.code || '', first.color, first.variant, qtySum, first.unit_price, qt.total, notes, hist,
         JSON.stringify(items), qt.subtotal, qt.product_discount, qt.promo && qt.promo.ok ? qt.promo.id : null, qt.promo && qt.promo.ok ? qt.promo.code : '',
-        qt.promo_discount, qt.shipping, method, delivery, delivery === 'delivery' ? address : '']);
+        qt.promo_discount, qt.shipping, method, delivery, delivery === 'delivery' ? address : '', branch ? branch.id : '', branch ? branch.name : '']);
     return { id: o.id, order_no: Number(o.order_no), total: qt.total };
   });
 }
@@ -259,6 +276,13 @@ async function customerShop(sql, action, p) {
     return withImages(sql, rows);
   }
   if (action === 'quote') return quote(sql, c, p, false);
+  if (action === 'saveAddress') { // عنوان التوصيل المحفوظ في حساب العميل
+    const a = T(p.address).slice(0, 500);
+    if (a.length < 5) throw new Error('اكتب العنوان بالتفصيل');
+    await sql.unsafe(`insert into mobily.mc_shop_addresses (customer_id, address, updated_at) values ($1, $2, now())
+      on conflict (customer_id) do update set address = excluded.address, updated_at = now()`, [c.customer_id, a]);
+    return { address: a };
+  }
   if (action === 'checkout') return checkout(sql, c, p);
   if (action === 'order') { // النسخة القديمة من الصفحة (منتج واحد)
     return checkout(sql, c, { items: [{ product_id: p.product_id, color: p.color, variant: p.variant, qty: p.qty }], notes: p.notes, method: 'buy_now' });
@@ -285,7 +309,7 @@ function publicOrder(o, imgs) {
     id: o.id, order_no: Number(o.order_no), product_id: o.product_id, product_name: o.product_name, product_code: o.product_code,
     color: o.color, variant: o.variant, qty: o.qty, unit_price: Number(o.unit_price), total: Number(o.total), notes: o.notes,
     items, subtotal: Number(o.subtotal), product_discount: Number(o.product_discount), promo_code: o.promo_code || '', promo_discount: Number(o.promo_discount),
-    shipping: Number(o.shipping), method: o.method, delivery: o.delivery, address: o.address || '',
+    shipping: Number(o.shipping), method: o.method, delivery: o.delivery, address: o.address || '', branch_name: o.branch_name || '',
     status: o.status, reject_reason: o.reject_reason, image: items[0] ? items[0].image : '', created_at: o.created_at, updated_at: o.updated_at,
     history: (Array.isArray(o.history) ? o.history : []).map((h) => ({ s: h.s, at: h.at })),
   };
@@ -328,7 +352,7 @@ export async function handleShop(body, ctx) {
   try {
     if (fn === 'shop') {
       if (args[0] === 'catalog') return ok(await catalog(sql));
-      if (['order', 'quote', 'checkout', 'myOrders', 'cancelOrder'].indexOf(args[0]) >= 0) return ok(await customerShop(sql, args[0], args[1] && typeof args[1] === 'object' ? args[1] : {}));
+      if (['order', 'quote', 'saveAddress', 'checkout', 'myOrders', 'cancelOrder'].indexOf(args[0]) >= 0) return ok(await customerShop(sql, args[0], args[1] && typeof args[1] === 'object' ? args[1] : {}));
       return bad('طلب غير معروف');
     }
     // ---------- الإدارة ----------
