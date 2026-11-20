@@ -1,4 +1,4 @@
-/* موبايلي - Mobily — لوحة الإدارة: «المنتجات» (منتجات وأقسام «تصفح منتجاتنا»)
+/* موبايلي - Mobily — لوحة الإدارة: «المنتجات» و«طلبات المنتجات» و«أكواد الخصم» («تصفح منتجاتنا»)
  * بيستخدم أدوات لوحة الإدارة الموجودة: api, SESSION, esc, $, $all, modal, closeModal, toast, busy, loading, go, money */
 (function () {
   'use strict';
@@ -64,7 +64,25 @@
     '.so-sts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}',
     '.so-sts button{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:10px;font:inherit;font-weight:800;font-size:13px;cursor:pointer}',
     '.so-sts button.on{border-color:#0891B2;background:#E0F2FE}',
-    '.so-hist{margin:6px 0 0;padding:0 18px 0 0;font-size:13px;color:#334155}.so-hist small{color:#5B6683}'
+    '.so-hist{margin:6px 0 0;padding:0 18px 0 0;font-size:13px;color:#334155}.so-hist small{color:#5B6683}',
+    '.ost.shipped{background:#DBEAFE;color:#1D4ED8}',
+    '.so-sum{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}.so-sum div{flex:1 1 120px;background:#F8FAFC;border:1px solid var(--line);border-radius:12px;padding:8px 10px}',
+    '.so-sum small{display:block;color:#5B6683;font-size:11.5px;font-weight:700}.so-sum b{font-size:15px}',
+    '.so-its{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:8px 0}',
+    '.so-its .it{display:flex;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line)}.so-its .it:last-child{border-bottom:0}',
+    '.so-its .th{width:44px;height:44px;border-radius:8px;background:#F3F5FA;flex:0 0 auto;overflow:hidden;display:grid;place-items:center}.so-its .th img{width:100%;height:100%;object-fit:contain}',
+    '.so-its .m{flex:1;min-width:0;font-size:13px}.so-its .m b{display:block}.so-its .m small{color:#5B6683}.so-its .lt{font-weight:800;white-space:nowrap}',
+    '.so-promo{font-family:Inter,monospace;font-size:11.5px;background:#DCFCE7;color:#166534;border-radius:6px;padding:1px 7px;direction:ltr}',
+    '.pm-item{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff;cursor:pointer}',
+    '.pm-item .top{display:flex;align-items:center;gap:8px;justify-content:space-between}',
+    '.pm-item .cd{font-family:Inter,monospace;font-weight:800;font-size:16px;direction:ltr}',
+    '.pm-item .ln{font-size:13px;color:#334155;margin-top:4px}.pm-item .ln.mu{color:#5B6683;font-size:12.5px}',
+    '.pm-st{font-size:11.5px;font-weight:800;padding:2px 10px;border-radius:999px}.pm-st.on{background:#DCFCE7;color:#166534}.pm-st.off{background:#F1F5F9;color:#475569}.pm-st.exp{background:#FEE2E2;color:#B91C1C}.pm-st.soon{background:#FEF3C7;color:#92400E}',
+    '.pm-pick{max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:6px 10px;background:#fff}',
+    '.pm-pick label{display:flex;align-items:center;gap:8px;margin:0;padding:6px 0;font-weight:600;font-size:13.5px;cursor:pointer;border-bottom:1px dashed #EEF2FA}',
+    '.pm-pick label:last-child{border-bottom:0}.pm-pick input{width:18px;height:18px;margin:0;flex:0 0 auto}',
+    '.pm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 10px}',
+    '.pm-stats{display:flex;gap:8px;margin-bottom:6px}.pm-stats div{flex:1;background:#F5F3FF;border-radius:12px;padding:8px 10px}.pm-stats small{display:block;color:#5B6683;font-size:11.5px;font-weight:700}.pm-stats b{font-size:16px}'
   ].join('\n');
   var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
 
@@ -325,8 +343,8 @@
 
   /* ---------------- طلبات المنتجات ---------------- */
   var ORD = [], OF = { q: '', st: '', from: '', to: '' };
-  var ST_AR = { pending: 'قيد المراجعة', approved: 'تم قبول الطلب', preparing: 'جاري التجهيز', ready: 'جاهز للاستلام', completed: 'تم التسليم', rejected: 'مرفوض', cancelled: 'ملغي' };
-  var ST_ORDER = ['pending', 'approved', 'preparing', 'ready', 'completed', 'rejected', 'cancelled'];
+  var ST_AR = { pending: 'قيد المراجعة', approved: 'تم قبول الطلب', preparing: 'جاري التجهيز', ready: 'جاهز للاستلام', shipped: 'تم الشحن', completed: 'تم إتمام الطلب', rejected: 'مرفوض', cancelled: 'ملغي' };
+  var ST_ORDER = ['pending', 'approved', 'preparing', 'ready', 'shipped', 'completed', 'rejected', 'cancelled'];
   function stB(s) { return '<span class="ost ' + esc(s) + '">' + esc(ST_AR[s] || s) + '</span>'; }
   function odt(iso) { var x = new Date(iso); return isNaN(x) ? '' : x.toLocaleString('ar-EG-u-nu-latn', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
   function dayK(iso) { var x = new Date(iso); var z = new Date(x.getTime() - x.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); }
@@ -340,12 +358,13 @@
   }
   function drawOrders(v) {
     var cnt = {}; ORD.forEach(function (o) { cnt[o.status] = (cnt[o.status] || 0) + 1; });
-    v.innerHTML = '<div class="card"><div class="toolbar"><h2 style="margin:0;flex:1">📦 طلبات المنتجات</h2><button class="btn ghost sm" type="button" id="soRef">⟳ تحديث</button></div>' +
+    v.innerHTML = '<div class="card"><div class="toolbar"><h2 style="margin:0;flex:1">📦 طلبات المنتجات</h2><button class="btn ghost sm" type="button" id="soSet">⚙️ التوصيل</button><button class="btn ghost sm" type="button" id="soRef">⟳ تحديث</button></div>' +
       '<div class="so-st" id="soSt"><button type="button" data-st=""' + (OF.st ? '' : ' class="on"') + '>الكل (' + ORD.length + ')</button>' +
       ST_ORDER.map(function (s) { return '<button type="button" data-st="' + s + '"' + (OF.st === s ? ' class="on"' : '') + '>' + ST_AR[s] + ' (' + (cnt[s] || 0) + ')</button>'; }).join('') + '</div>' +
       '<div class="so-filters"><input id="soQ" placeholder="🔍 رقم الطلب أو اسم العميل أو الموبايل" value="' + esc(OF.q) + '" style="flex-basis:100%">' +
       '<div><label style="margin:0 0 4px">من تاريخ</label><input type="date" id="soFrom" value="' + esc(OF.from) + '"></div><div><label style="margin:0 0 4px">إلى تاريخ</label><input type="date" id="soTo" value="' + esc(OF.to) + '"></div></div>' +
-      '<div id="soList" class="sp-list"></div></div>';
+      '<div class="so-sum" id="soSum"></div><div id="soList" class="sp-list"></div></div>';
+    $('#soSet').onclick = deliverySettings;
     $('#soRef').onclick = function () { loading($('#soList')); reloadOrders(); };
     $all('#soSt button', v).forEach(function (b) { b.onclick = function () { OF.st = b.dataset.st; drawOrders(v); }; });
     $('#soQ').oninput = function () { OF.q = this.value; listOrders(); };
@@ -363,13 +382,18 @@
       return !q || String(o.order_no) === q || String(o.order_no).indexOf(q) === 0 || o.customer_name.toLowerCase().indexOf(q) >= 0 || String(o.customer_phone).indexOf(q) >= 0;
     });
     var box = $('#soList');
+    var live = rows.filter(function (o) { return OF.st === 'rejected' || OF.st === 'cancelled' || (o.status !== 'rejected' && o.status !== 'cancelled'); });
+    var sumT = live.reduce(function (s, o) { return s + Number(o.total || 0); }, 0), sumD = live.reduce(function (s, o) { return s + Number(o.product_discount || 0) + Number(o.promo_discount || 0); }, 0);
+    $('#soSum').innerHTML = '<div><small>عدد الطلبات</small><b>' + rows.length + '</b></div><div><small>إجمالي قيمة الطلبات</small><b>' + money(sumT) + '</b></div><div><small>إجمالي الخصومات</small><b>' + money(sumD) + '</b></div>' +
+      (OF.st === 'rejected' || OF.st === 'cancelled' ? '' : '<div style="flex-basis:100%;background:transparent;border:0;padding:0"><small>الإجماليات من غير الطلبات الملغية والمرفوضة</small></div>');
     if (!rows.length) { box.innerHTML = '<div class="empty">' + (ORD.length ? 'مفيش طلبات بالبحث ده' : 'لسه مفيش طلبات من العملاء.') + '</div>'; return; }
     box.innerHTML = rows.map(function (o) {
       return '<div class="so-item" data-oid="' + esc(o.id) + '"><div class="th">' + (o.image ? img(o.image) : '📦') + '</div><div class="bd">' +
         '<div class="top"><b>#' + o.order_no + '</b>' + stB(o.status) + '</div>' +
-        '<div class="ln"><b>' + esc(o.product_name) + '</b>' + (o.product_code ? ' <span class="sp-code">' + esc(o.product_code) + '</span>' : '') + '</div>' +
+        '<div class="ln"><b>' + esc(o.product_name) + '</b>' + (o.items.length === 1 && o.product_code ? ' <span class="sp-code">' + esc(o.product_code) + '</span>' : '') + '</div>' +
         '<div class="ln">' + esc(o.customer_name) + ' · <span style="direction:ltr;unicode-bidi:isolate">' + esc(o.customer_phone) + '</span></div>' +
-        '<div class="ln mu">الكمية ' + o.qty + (o.color ? ' · ' + esc(o.color) : '') + (o.variant ? ' · ' + esc(o.variant) : '') + ' · ' + money(o.unit_price) + ' للقطعة · الإجمالي <b>' + money(o.total) + '</b></div>' +
+        '<div class="ln mu">' + (o.items.length > 1 ? o.items.length + ' منتجات · ' : '') + 'الكمية ' + o.qty + (o.items.length === 1 && o.color ? ' · ' + esc(o.color) : '') + (o.items.length === 1 && o.variant ? ' · ' + esc(o.variant) : '') +
+        ' · الإجمالي <b>' + money(o.total) + '</b>' + (o.promo_code ? ' <span class="so-promo">🏷️ ' + esc(o.promo_code) + '</span>' : '') + (o.delivery === 'delivery' ? ' · 🛵 توصيل' : '') + '</div>' +
         '<div class="ln mu">' + esc(odt(o.created_at)) + (o.notes ? ' · 📝 ' + esc(o.notes.length > 50 ? o.notes.slice(0, 50) + '…' : o.notes) : '') + '</div></div></div>';
     }).join('');
     $all('[data-oid]', box).forEach(function (el) { el.onclick = function () { orderDetails(el.dataset.oid); }; });
@@ -379,19 +403,36 @@
     var r = function (k, val) { return '<div class="r"><span>' + k + '</span><span>' + val + '</span></div>'; };
     var shop = (PS && (PS.shop_name || PS.program_name)) || 'موبايلي';
     var msg = 'أهلاً ' + o.customer_name + ' 👋\nبخصوص طلبك رقم #' + o.order_no + ' (' + o.product_name + ') من ' + shop + ':\nحالة الطلب: ' + (ST_AR[o.status] || o.status);
+    var disc = Number(o.product_discount || 0) + Number(o.promo_discount || 0);
     var body = modal('طلب #' + o.order_no,
-      '<div class="so-det">' + r('الحالة', stB(o.status)) + (o.status === 'rejected' && o.reject_reason ? r('سبب الرفض', esc(o.reject_reason)) : '') +
-      r('رقم الطلب', '#' + o.order_no) + r('تاريخ الطلب', esc(odt(o.created_at))) +
+      '<div class="so-det">' + r('الحالة', stB(o.status)) +
+      ((o.status === 'rejected' || o.status === 'cancelled') && o.reject_reason ? r(o.status === 'rejected' ? 'سبب الرفض' : 'سبب الإلغاء', esc(o.reject_reason)) : '') +
+      r('رقم الطلب', '#' + o.order_no) + r('تاريخ الطلب', esc(odt(o.created_at))) + r('طريقة الشراء', o.method === 'cart' ? 'من السلة' : 'اشترِ الآن') +
       r('اسم العميل', esc(o.customer_name)) + r('رقم الهاتف', '<span style="direction:ltr">' + esc(o.customer_phone) + '</span>') + (o.member_no ? r('رقم العضوية', esc(o.member_no)) : '') +
-      r('المنتج', esc(o.product_name)) + r('كود المنتج', o.product_code ? esc(o.product_code) : '—') + (o.color ? r('اللون', esc(o.color)) : '') + (o.variant ? r('النوع', esc(o.variant)) : '') +
-      r('الكمية', o.qty) + r('سعر القطعة وقت الطلب', money(o.unit_price)) + r('الإجمالي', '<b>' + money(o.total) + '</b>') +
-      r('ملاحظات العميل', o.notes ? esc(o.notes) : '—') + '</div>' +
+      r('طريقة الاستلام', o.delivery === 'delivery' ? '🛵 توصيل' : '🏬 استلام من الفرع') + (o.delivery === 'delivery' ? r('العنوان', esc(o.address || '—')) : '') + '</div>' +
+      '<h3 style="margin:14px 0 4px">المنتجات</h3><div class="so-its">' + o.items.map(function (l) {
+        return '<div class="it"><div class="th">' + (l.image ? img(l.image) : '📦') + '</div><div class="m"><b>' + esc(l.name) + '</b>' +
+          '<small>' + (l.code ? '<span class="sp-code">' + esc(l.code) + '</span> ' : '') + esc([l.color, l.variant].filter(Boolean).join(' · ')) + '</small><br><small>' + l.qty + ' × ' + money(l.unit_price) +
+          (l.old_price ? ' (بدل ' + money(l.old_price) + ')' : '') + '</small></div><span class="lt">' + money(l.line_total) + '</span></div>';
+      }).join('') + '</div>' +
+      '<div class="so-det">' + r('إجمالي المنتجات', money(o.subtotal)) + (o.product_discount > 0 ? r('خصم المنتجات', '− ' + money(o.product_discount)) : '') +
+      r('كود الخصم', o.promo_code ? '<span class="so-promo">' + esc(o.promo_code) + '</span> − ' + money(o.promo_discount) : '—') +
+      (disc > 0 ? r('إجمالي الخصومات', '− ' + money(disc)) : '') + (o.delivery === 'delivery' ? r('مصاريف الشحن', money(o.shipping)) : '') +
+      r('الإجمالي النهائي', '<b>' + money(o.total) + '</b>') + r('ملاحظات العميل', o.notes ? esc(o.notes) : '—') + '</div>' +
       '<div class="so-acts"><a class="btn wa" target="_blank" rel="noopener" href="https://wa.me/' + esc(waNum(o.customer_phone)) + '?text=' + encodeURIComponent(msg) + '" style="background:#25D366;color:#062612">💬 واتساب العميل</a>' +
       '<a class="btn ghost" href="tel:' + esc(o.customer_phone) + '">📞 اتصال</a></div>' +
+      '<h3 style="margin:16px 0 4px">ملاحظات داخلية <small style="color:#5B6683;font-weight:600">(مش بتظهر للعميل)</small></h3><textarea id="soNotes" rows="2" maxlength="1000">' + esc(o.admin_notes || '') + '</textarea>' +
+      '<div style="height:6px"></div><button type="button" class="btn ghost sm" id="soNotesOk">حفظ الملاحظات</button>' +
       '<h3 style="margin:16px 0 4px">تغيير حالة الطلب</h3><div class="so-sts">' + ST_ORDER.map(function (s) { return '<button type="button" data-s="' + s + '"' + (o.status === s ? ' class="on" disabled' : '') + '>' + ST_AR[s] + '</button>'; }).join('') + '</div>' +
-      '<div id="soRej" class="hidden"><label>سبب الرفض (هيظهر للعميل) *</label><input id="soReason" maxlength="300" placeholder="مثلاً: المنتج خلص من المخزن"><div style="height:8px"></div><button type="button" class="btn" id="soRejOk" style="background:#DC2626">تأكيد الرفض</button></div>' +
+      '<div id="soRej" class="hidden"><label id="soRejL">سبب الرفض (هيظهر للعميل) *</label><input id="soReason" maxlength="300" placeholder="مثلاً: المنتج خلص من المخزن"><div style="height:8px"></div><button type="button" class="btn" id="soRejOk" style="background:#DC2626">تأكيد الرفض</button></div>' +
       '<div id="soErr"></div>' +
       '<h3 style="margin:16px 0 4px">سجل الطلب</h3><ul class="so-hist">' + (o.history || []).map(function (h) { return '<li>' + esc(ST_AR[h.s] || h.s) + ' <small>' + esc(odt(h.at)) + (h.by && h.by !== 'customer' ? ' · ' + esc(h.by) : h.by === 'customer' ? ' · العميل' : '') + '</small></li>'; }).join('') + '</ul>', true);
+    $('#soNotesOk').onclick = function () {
+      var btn = this; busy(btn, true);
+      sh('saveOrderNotes', { id: o.id, notes: $('#soNotes').value }).then(function () { o.admin_notes = $('#soNotes').value; toast('تم حفظ الملاحظات ✓'); })
+        .catch(function (e) { toast(e.message, true); }).then(function () { busy(btn, false); });
+    };
+    var REJ = 'rejected';
     function set(st, reason, btn) {
       busy(btn, true); $('#soErr').innerHTML = '';
       sh('setOrderStatus', { id: o.id, status: st, reason: reason || '' }).then(function () { toast('تم تحديث حالة الطلب ✓'); return reloadOrders(o.id); })
@@ -399,10 +440,123 @@
     }
     $all('[data-s]', body).forEach(function (b) {
       b.onclick = function () {
-        if (b.dataset.s === 'rejected') { $('#soRej').classList.remove('hidden'); $('#soReason').focus(); return; }
+        if (b.dataset.s === 'rejected' || b.dataset.s === 'cancelled') {
+          REJ = b.dataset.s;
+          $('#soRejL').textContent = REJ === 'rejected' ? 'سبب الرفض (هيظهر للعميل) *' : 'سبب الإلغاء (اختياري، هيظهر للعميل)';
+          $('#soRejOk').textContent = REJ === 'rejected' ? 'تأكيد الرفض' : 'تأكيد الإلغاء';
+          $('#soRej').classList.remove('hidden'); $('#soReason').focus(); return;
+        }
         set(b.dataset.s, '', b);
       };
     });
-    $('#soRejOk').onclick = function () { set('rejected', $('#soReason').value, this); };
+    $('#soRejOk').onclick = function () { set(REJ, $('#soReason').value, this); };
   }
+
+  /* إعدادات الاستلام والتوصيل */
+  function deliverySettings() {
+    var body = modal('⚙️ الاستلام والتوصيل', '<div id="dsBox"><div class="spinner"></div></div>');
+    sh('shopSettings').then(function (st) {
+      $('#dsBox').innerHTML = '<p class="small muted" style="margin-top:0">الاستلام من الفرع متاح دايماً. لو فعّلت التوصيل، العميل هيقدر يختاره في إتمام الشراء ويكتب عنوانه.</p>' +
+        '<label class="sp-tg" style="font-size:14px;color:#0B1222"><input type="checkbox" id="dsOn"' + (st.delivery_enabled ? ' checked' : '') + '> التوصيل متاح</label>' +
+        '<label>مصاريف الشحن (' + esc(PS.currency || 'ج.م') + ')</label><input id="dsFee" inputmode="decimal" value="' + (st.delivery_fee || '') + '" placeholder="0 = مجاناً">' +
+        '<div id="dsErr"></div><div style="height:10px"></div><button type="button" class="btn" id="dsSave">حفظ</button>';
+      $('#dsSave').onclick = function () {
+        var btn = this; busy(btn, true);
+        sh('saveShopSettings', { delivery_enabled: $('#dsOn').checked, delivery_fee: numVal($('#dsFee')) }).then(function () { closeModal(); toast('تم الحفظ ✓'); })
+          .catch(function (e) { $('#dsErr').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; busy(btn, false); });
+      };
+    }).catch(function (e) { $('#dsBox').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  }
+
+  /* ---------------- أكواد الخصم ---------------- */
+  var PM = [], PMF = { q: '' };
+  function pmState(p) {
+    if (!p.active) return ['off', 'موقوف'];
+    if (p.ends_on && p.ends_on < p.today) return ['exp', 'منتهي'];
+    if (p.starts_on && p.starts_on > p.today) return ['soon', 'يبدأ ' + p.starts_on];
+    if (p.max_uses > 0 && p.uses >= p.max_uses) return ['exp', 'خلص عدد الاستخدام'];
+    return ['on', 'شغال'];
+  }
+  function pmDisc(p) { return p.kind === 'percent' ? p.value + '%' + (p.max_discount > 0 ? ' (بحد أقصى ' + money(p.max_discount) + ')' : '') : money(p.value); }
+  window.viewShopPromos = function (v) {
+    Promise.all([sh('promos'), sh('list')]).then(function (r) { PM = r[0]; SD = fixSD(r[1]); drawPromos(v); })
+      .catch(function (e) { v.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  };
+  function reloadPromos() { return sh('promos').then(function (r) { PM = r; var v = $('#viewIn'); if (v && CUR === 'promos') drawPromos(v); }); }
+  function drawPromos(v) {
+    v.innerHTML = '<div class="card"><div class="toolbar"><h2 style="margin:0;flex:1">🏷️ أكواد الخصم</h2><button class="btn sm" type="button" id="pmNew">+ كود جديد</button></div>' +
+      '<p class="small muted" style="margin-top:0">أكواد خصم للشراء أونلاين من «تصفح منتجاتنا». العميل بيكتب الكود في السلة أو في إتمام الشراء.</p>' +
+      '<input id="pmQ" placeholder="🔍 ابحث بالكود" value="' + esc(PMF.q) + '" style="margin-bottom:10px"><div id="pmList" class="sp-list"></div></div>';
+    $('#pmNew').onclick = function () { promoForm(null); };
+    $('#pmQ').oninput = function () { PMF.q = this.value; listPromos(); };
+    listPromos();
+  }
+  function listPromos() {
+    var q = PMF.q.trim().toLowerCase(), rows = PM.filter(function (p) { return !q || p.code.toLowerCase().indexOf(q) >= 0; });
+    var box = $('#pmList');
+    if (!rows.length) { box.innerHTML = '<div class="empty">' + (PM.length ? 'مفيش كود بالاسم ده' : 'لسه مفيش أكواد خصم. دوس «+ كود جديد».') + '</div>'; return; }
+    box.innerHTML = rows.map(function (p) {
+      var st = pmState(p), scoped = (p.product_ids || []).length || (p.category_ids || []).length;
+      return '<div class="pm-item" data-pm="' + esc(p.id) + '"><div class="top"><span class="cd">' + esc(p.code) + '</span><span class="pm-st ' + st[0] + '">' + esc(st[1]) + '</span></div>' +
+        '<div class="ln">خصم <b>' + pmDisc(p) + '</b>' + (p.min_order > 0 ? ' · الحد الأدنى للطلب ' + money(p.min_order) : '') + (scoped ? ' · على منتجات/أقسام معينة' : ' · على إجمالي الطلب') + '</div>' +
+        '<div class="ln mu">استُخدم ' + p.uses + (p.max_uses > 0 ? ' من ' + p.max_uses : '') + ' مرة · إجمالي الخصومات ' + money(p.total_discount) +
+        (p.starts_on || p.ends_on ? ' · ' + (p.starts_on ? 'من ' + p.starts_on + ' ' : '') + (p.ends_on ? 'لحد ' + p.ends_on : '') : '') + '</div>' +
+        '<div class="ln" style="margin-top:8px;display:flex;gap:8px;align-items:center"><label class="sp-tg"><input type="checkbox" data-act="' + esc(p.id) + '"' + (p.active ? ' checked' : '') + '> مفعّل</label>' +
+        '<span style="flex:1"></span><button type="button" class="btn sm sp-edit">✏️ تعديل</button></div></div>';
+    }).join('');
+    $all('[data-pm]', box).forEach(function (el) {
+      el.onclick = function (e) { if (e.target.closest('label,input')) return; promoForm(PM.filter(function (p) { return p.id === el.dataset.pm; })[0]); };
+    });
+    $all('[data-act]', box).forEach(function (cb) {
+      cb.onchange = function () {
+        cb.disabled = true;
+        sh('setPromo', { id: cb.dataset.act, active: cb.checked }).then(function () { toast(cb.checked ? 'الكود اتفعّل ✓' : 'الكود اتوقف'); return reloadPromos(); })
+          .catch(function (e) { cb.checked = !cb.checked; cb.disabled = false; toast(e.message, true); });
+      };
+    });
+  }
+  function promoForm(p) {
+    var isNew = !p; p = p || { kind: 'percent', active: true, stackable: true, product_ids: [], category_ids: [] };
+    var PIDS = (p.product_ids || []).slice(), CIDS = (p.category_ids || []).slice();
+    var scoped = PIDS.length || CIDS.length;
+    var nv = function (x) { return x ? esc(x) : ''; };
+    var body = modal(isNew ? 'كود خصم جديد' : 'تعديل الكود ' + p.code,
+      (isNew ? '' : '<div class="pm-stats"><div><small>عدد مرات الاستخدام</small><b>' + p.uses + '</b></div><div><small>إجمالي الخصومات من الكود</small><b>' + money(p.total_discount) + '</b></div></div>') +
+      '<label>الكود *</label><input id="pmCode" value="' + nv(p.code) + '" placeholder="مثلاً: MOBILY10" maxlength="30" style="direction:ltr;text-align:left;text-transform:uppercase">' +
+      '<div class="pm-grid"><div><label>نوع الخصم</label><select id="pmKind"><option value="percent"' + (p.kind === 'percent' ? ' selected' : '') + '>نسبة مئوية %</option><option value="fixed"' + (p.kind === 'fixed' ? ' selected' : '') + '>مبلغ ثابت</option></select></div>' +
+      '<div><label>قيمة الخصم *</label><input id="pmVal" inputmode="decimal" value="' + nv(p.value) + '" placeholder="10"></div>' +
+      '<div><label>الحد الأدنى للطلب</label><input id="pmMin" inputmode="decimal" value="' + nv(p.min_order) + '" placeholder="من غير حد"></div>' +
+      '<div id="pmMaxW"><label>أقصى خصم (للنسبة)</label><input id="pmMax" inputmode="decimal" value="' + nv(p.max_discount) + '" placeholder="من غير حد"></div>' +
+      '<div><label>تاريخ البداية</label><input type="date" id="pmFrom" value="' + nv(p.starts_on) + '"></div>' +
+      '<div><label>تاريخ النهاية</label><input type="date" id="pmTo" value="' + nv(p.ends_on) + '"></div>' +
+      '<div><label>عدد مرات الاستخدام (إجمالي)</label><input id="pmUses" inputmode="numeric" value="' + nv(p.max_uses) + '" placeholder="من غير حد"></div>' +
+      '<div><label>عدد المرات لكل عميل</label><input id="pmPer" inputmode="numeric" value="' + nv(p.per_customer) + '" placeholder="من غير حد"></div></div>' +
+      '<label>الكود يتطبق على</label><select id="pmScope"><option value="all"' + (scoped ? '' : ' selected') + '>إجمالي الطلب (كل المنتجات)</option><option value="some"' + (scoped ? ' selected' : '') + '>منتجات أو أقسام معينة</option></select>' +
+      '<div id="pmScopeBox" class="' + (scoped ? '' : 'hidden') + '"><label>الأقسام</label><div class="pm-pick">' + SD.categories.map(function (c) {
+        return '<label><input type="checkbox" data-cid="' + esc(c.id) + '"' + (CIDS.indexOf(c.id) >= 0 ? ' checked' : '') + '>' + esc((c.icon ? c.icon + ' ' : '') + c.name) + '</label>';
+      }).join('') + '</div><label>المنتجات</label><input id="pmPQ" placeholder="🔍 ابحث باسم المنتج أو الكود" style="margin-bottom:6px"><div class="pm-pick" id="pmProds">' + SD.products.map(function (x) {
+        return '<label data-pn="' + esc((x.name + ' ' + (x.code || '')).toLowerCase()) + '"><input type="checkbox" data-pid="' + esc(x.id) + '"' + (PIDS.indexOf(x.id) >= 0 ? ' checked' : '') + '>' + esc(x.name) + (x.code ? ' <span class="sp-code">' + esc(x.code) + '</span>' : '') + '</label>';
+      }).join('') + (SD.products.length ? '' : '<div class="small muted">مفيش منتجات لسه</div>') + '</div></div>' +
+      '<label class="sp-tg" style="margin-top:14px;font-size:13.5px;color:#0B1222"><input type="checkbox" id="pmStack"' + (p.stackable ? ' checked' : '') + '> ينفع يتجمع مع خصومات المنتجات (المنتجات اللي عليها خصم)</label>' +
+      '<label class="sp-tg" style="margin-top:10px;font-size:13.5px;color:#0B1222"><input type="checkbox" id="pmAct"' + (p.active ? ' checked' : '') + '> الكود مفعّل</label>' +
+      '<div id="pmErr"></div><div style="height:12px"></div><button type="button" class="btn" id="pmSave">حفظ</button>', true);
+    function kind() { $('#pmMaxW').style.visibility = $('#pmKind').value === 'percent' ? '' : 'hidden'; }
+    kind(); $('#pmKind').onchange = kind;
+    $('#pmScope').onchange = function () { $('#pmScopeBox').classList.toggle('hidden', this.value !== 'some'); };
+    $('#pmPQ').oninput = function () { var q = this.value.trim().toLowerCase(); $all('#pmProds [data-pn]', body).forEach(function (l) { l.style.display = !q || l.dataset.pn.indexOf(q) >= 0 ? '' : 'none'; }); };
+    $('#pmSave').onclick = function () {
+      var btn = this, some = $('#pmScope').value === 'some';
+      var cids = some ? $all('[data-cid]', body).filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.cid; }) : [];
+      var pids = some ? $all('[data-pid]', body).filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.pid; }) : [];
+      $('#pmErr').innerHTML = '';
+      if (some && !cids.length && !pids.length) { $('#pmErr').innerHTML = '<div class="err">اختار قسم أو منتج واحد على الأقل</div>'; return; }
+      busy(btn, true);
+      sh('savePromo', { id: p.id || '', code: $('#pmCode').value, kind: $('#pmKind').value, value: numVal($('#pmVal')), min_order: numVal($('#pmMin')), max_discount: numVal($('#pmMax')),
+        starts_on: $('#pmFrom').value, ends_on: $('#pmTo').value, max_uses: numVal($('#pmUses')), per_customer: numVal($('#pmPer')),
+        product_ids: pids, category_ids: cids, stackable: $('#pmStack').checked, active: $('#pmAct').checked })
+        .then(function () { closeModal(); toast('تم حفظ الكود ✓'); return reloadPromos(); })
+        .catch(function (e) { $('#pmErr').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; }).then(function () { busy(btn, false); });
+    };
+  }
+
 })();
