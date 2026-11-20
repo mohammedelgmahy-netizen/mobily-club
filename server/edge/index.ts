@@ -5,7 +5,7 @@ import postgres from 'npm:postgres@3.4.5';
 import * as crypto from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import { handle } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@407cd850a336c7d8027b7c301cf160dd47c5bda6/server/bundle.js';
-import { handleShop } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@1af7546ef57308c88d63b3d82b4bb87dfdc1efa2/server/shop.js';
+import { handleShop } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@2b5babb16288dc1e76b1a9709db5030a7424a496/server/shop.js';
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2, idle_timeout: 60 });
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -47,7 +47,7 @@ async function verifyAdmin(token: string) {
   const out: any = await handle({ fn: 'adminApi', args: [token, 'me', {}, ''] }, db, { crypto, Buffer, uploadImage });
   const res = out && out.result;
   if (!res || !res.ok) return { ok: false, res: res || { ok: false, error: 'حدث خطأ في الخادم، حاول مرة أخرى' } };
-  return { ok: true, permissions: res.data.user.permissions };
+  return { ok: true, permissions: res.data.user.permissions, name: res.data.user.display_name || res.data.user.username || '' };
 }
 
 Deno.serve(async (req: Request) => {
