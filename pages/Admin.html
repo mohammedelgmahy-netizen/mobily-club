@@ -471,7 +471,7 @@ function boot() {
 var PAGES = [
   ['dashboard', 'لوحة المؤشرات', 'dashboard', '📊', '#0891B2'], ['reports', 'التقارير', 'dashboard', '📈', '#2563EB'], ['sales', 'تسجيل بيع / استبدال', 'sales', '🧾', '#16A34A'], ['customers', 'العملاء', 'customers_view', '👥', '#2563EB'],
   ['offers', 'العروض', 'offers_manage', '🎁', '#DB2777'], ['products', 'المنتجات', 'settings', '🛍️', '#EA580C'], ['shoporders', 'طلبات المنتجات', 'settings', '📦', '#0D9488'], ['promos', 'أكواد الخصم', 'settings', '🏷️', '#7C3AED'], ['whatsapp', 'واتساب', 'whatsapp', '💬', '#059669'], ['birthdays', 'أعياد الميلاد', 'whatsapp', '🎂', '#E11D48'], ['ledger', 'سجل النقاط', 'customers_view', '⭐', '#D97706'],
-  ['settings', 'الإعدادات', 'settings', '⚙️', '#475569'], ['users', 'الموظفون', 'users_manage', '🧑‍💼', '#7C3AED'], ['activity', 'سجل العمليات', 'audit', '📋', '#0F766E'], ['qr', 'QR المحل', null, '🔳', '#0B1222']
+  ['settings', 'الإعدادات', 'settings', '⚙️', '#475569'], ['users', 'الموظفون', 'users_manage', '🧑‍💼', '#7C3AED'], ['activity', 'سجل العمليات', 'audit', '📋', '#0F766E'], ['requests', 'طلبات تعديل', 'settings', '📝', '#0284C7'], ['qr', 'QR المحل', null, '🔳', '#0B1222']
 ];
 function pageOk(p) {
   if (p[0] === 'birthdays' && !hasFeature('birthday')) return false;
@@ -492,7 +492,7 @@ function go(p, opt) {
   if (back) $('#backBtn').onclick = function () { go(back[0], back[2]); };
   var v = $('#viewIn'); loading(v);
   ({ dashboard: viewDashboard, reports: viewReports, birthdays: viewBirthdays, sales: viewSales, customers: viewCustomers, offers: viewOffers, shoporders: function (v) { if (window.viewShopOrders) viewShopOrders(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, promos: function (v) { if (window.viewShopPromos) viewShopPromos(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, products: function (v) { if (window.viewProducts) viewProducts(v); else v.innerHTML = '<div class="err">تعذر تحميل صفحة المنتجات، حدّث الصفحة</div>'; }, whatsapp: viewWhatsApp,
-     ledger: viewLedger, settings: viewSettings, users: viewUsers, activity: viewActivity, qr: viewQR }[p] || viewDashboard)(v);
+     ledger: viewLedger, settings: viewSettings, users: viewUsers, activity: viewActivity, requests: viewRequests, qr: viewQR }[p] || viewDashboard)(v);
 }
 
 /* ---------------- لوحة المؤشرات ---------------- */
@@ -1597,6 +1597,39 @@ function viewActivity(v) {
     }).catch(function (e) { box.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
   };
   var t; $('#acQ').addEventListener('input', function () { clearTimeout(t); t = setTimeout(load, 300); }); load();
+}
+
+/* ---------------- طلبات تعديل ---------------- */
+function reqApi(action, payload) {
+  return api('requests', SESSION, action, payload || {}).catch(function (e) {
+    if (e.code === 'SESSION_EXPIRED' || e.message === 'SESSION_EXPIRED') { SESSION = ''; store('mc_admin_sess', null); showLogin('انتهت الجلسة، سجّل الدخول مرة أخرى'); throw new Error('انتهت الجلسة'); }
+    throw e;
+  });
+}
+function viewRequests(v) {
+  v.innerHTML = '<div class="card"><h2>طلبات تعديل</h2><textarea id="rqText" rows="4" placeholder="اكتب طلب التعديل هنا"></textarea>' +
+    '<div class="toolbar" style="margin-top:10px"><button class="btn" id="rqSend" type="button">إرسال الطلب</button></div></div>' +
+    '<div class="card" style="margin-top:14px"><h2>الطلبات</h2><div id="rqBox"></div></div>';
+  var load = function () {
+    var box = $('#rqBox'); loading(box);
+    reqApi('list').then(function (rows) {
+      box.innerHTML = rows.length ? rows.map(function (r) {
+        return '<div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px">' +
+          '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px">' +
+          '<span style="white-space:nowrap">' + (r.status === 'done' ? badge('تم التنفيذ', 'green') : badge('جديد', 'gold')) + '</span>' +
+          '<span class="small muted">' + esc(fmtDate(r.created_at, 'ar', 1)) + (r.author ? ' · ' + esc(r.author) : '') + '</span></div>' +
+          '<div style="white-space:pre-wrap;word-break:break-word;unicode-bidi:plaintext">' + esc(r.text) + '</div></div>';
+      }).join('') : '<div class="empty">لا توجد طلبات</div>';
+    }).catch(function (e) { box.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  };
+  $('#rqSend').onclick = function () {
+    var t = $('#rqText').value.trim(), btn = this;
+    if (!t) return toast('اكتب الطلب الأول', true);
+    busy(btn, true);
+    reqApi('add', { text: t }).then(function () { $('#rqText').value = ''; toast('تم إرسال الطلب'); load(); })
+      .catch(function (e) { toast(e.message, true); }).then(function () { busy(btn, false); });
+  };
+  load();
 }
 
 /* ---------------- QR المحل ---------------- */
