@@ -102,6 +102,7 @@
     '.nav-n{background:#DC2626;color:#fff;font-size:10.5px;font-weight:800;border-radius:9px;padding:1px 6px;margin-inline-start:4px;font-style:normal}',
     '.nf-it{display:block;width:100%;text-align:right;border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff;font:inherit;cursor:pointer;margin-bottom:8px}',
     '.nf-it.un{background:#EFF6FF;border-color:#93C5FD}.nf-it b{display:block;font-size:14px}.nf-it span{display:block;font-size:12.5px;color:#475569;margin-top:2px}.nf-it small{color:#94A3B8;font-size:11.5px}',
+    '.bd-st{font-size:12.5px;font-weight:800;padding:4px 12px;border-radius:999px}.bd-st.on{background:#DCFCE7;color:#166534}.bd-st.off{background:#F1F5F9;color:#475569}.bd-st.wait{background:#FEF3C7;color:#92400E}',
     '.rw-t{width:100%;border-collapse:collapse;font-size:13px}.rw-t td,.rw-t th{border-bottom:1px solid var(--line);padding:7px 4px;text-align:right}.rw-t th{color:#5B6683;font-size:12px}'
   ].join('\n');
   var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
@@ -531,7 +532,7 @@
     var r = function (k, val) { return '<div class="r"><span>' + k + '</span><span>' + val + '</span></div>'; };
     var shop = (PS && (PS.shop_name || PS.program_name)) || 'موبايلي';
     var msg = 'أهلاً ' + o.customer_name + ' 👋\nبخصوص طلبك رقم #' + o.order_no + ' (' + o.product_name + ') من ' + shop + ':\nحالة الطلب: ' + (ST_AR[o.status] || o.status);
-    var disc = Number(o.product_discount || 0) + Number(o.promo_discount || 0);
+    var disc = Number(o.product_discount || 0) + Number(o.promo_discount || 0) + Number(o.birthday_discount || 0);
     var body = modal('طلب #' + o.order_no,
       '<div class="so-det">' + r('الحالة', stB(o.status)) +
       ((o.status === 'rejected' || o.status === 'cancelled') && o.reject_reason ? r(o.status === 'rejected' ? 'سبب الرفض' : 'سبب الإلغاء', esc(o.reject_reason)) : '') +
@@ -546,6 +547,7 @@
       }).join('') + '</div>' +
       '<div class="so-det">' + r('إجمالي المنتجات', money(o.subtotal)) + (o.product_discount > 0 ? r('خصم المنتجات', '− ' + money(o.product_discount)) : '') +
       r('كود الخصم', o.promo_code ? '<span class="so-promo">' + esc(o.promo_code) + '</span> − ' + money(o.promo_discount) : '—') +
+      (o.birthday_discount > 0 ? r('🎂 ' + esc(o.birthday_name || 'عرض عيد الميلاد'), '− ' + money(o.birthday_discount)) : '') +
       (disc > 0 ? r('إجمالي الخصومات', '− ' + money(disc)) : '') + (o.delivery === 'delivery' ? r('مصاريف الشحن', money(o.shipping)) : '') +
       r('الإجمالي النهائي', '<b>' + money(o.total) + '</b>') + r('ملاحظات العميل', o.notes ? esc(o.notes) : '—') + '</div>' +
       '<div class="so-acts"><a class="btn wa" target="_blank" rel="noopener" href="https://wa.me/' + esc(waNum(o.customer_phone)) + '?text=' + encodeURIComponent(msg) + '" style="background:#25D366;color:#062612">💬 واتساب العميل</a>' +
@@ -788,6 +790,86 @@
   };
 
   setTimeout(function () { var av = $('#appView'); if (SESSION && av && !av.classList.contains('hidden')) startPoll(); }, 1500);
+
+  /* ---------------- عرض عيد الميلاد: تفعيل/إيقاف + الفترة + العملاء المستحقين + المنتجات المشمولة ---------------- */
+  var BT_TYPES = { percent: 'خصم بنسبة %', fixed: 'خصم بمبلغ ثابت', gift: 'هدية (في المحل)', points: 'نقاط هدية في المحفظة', code: 'كود خصم خاص بالعميل' };
+  var BT_TARGET = { today: 'عيد ميلاد اليوم', week: 'عيد ميلاد الأسبوع الحالي (من السبت للجمعة)', date: 'تاريخ محدد', range: 'فترة من تاريخ لتاريخ' };
+  function fmtD(k) { if (!k) return ''; var x = new Date(k + 'T12:00:00'); return isNaN(x) ? k : x.toLocaleDateString('ar-EG-u-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' }); }
+  function fmtMD(k) { if (!k) return ''; var x = new Date(k + 'T12:00:00'); return isNaN(x) ? k : x.toLocaleDateString('ar-EG-u-nu-latn', { month: 'long', day: 'numeric' }); }
+  function bdOfferCard(box) {
+    if (!canShop()) { box.remove(); return; }
+    Promise.all([sh('birthdayOffer'), SD.products.length || SD.categories.length ? Promise.resolve(null) : sh('list')]).then(function (r) {
+      var o = r[0]; if (r[1]) SD = fixSD(r[1]);
+      var PIDS = (o.product_ids || []).slice(), CIDS = (o.category_ids || []).slice(), scoped = PIDS.length || CIDS.length;
+      var stTxt = o.enabled ? (o.period === 'scheduled' ? 'فعال · يبدأ ' + fmtD(o.start) : o.period === 'ended' ? 'فعال · بس فترته انتهت ' + fmtD(o.end) : 'فعال') : 'غير فعال';
+      box.innerHTML = '<div class="toolbar" style="flex-wrap:wrap"><h2 style="margin:0;flex:1">🎂 ' + esc(o.name) + '</h2>' +
+        '<span class="bd-st ' + (o.enabled && !o.period ? 'on' : o.enabled ? 'wait' : 'off') + '">' + esc(stTxt) + '</span></div>' +
+        '<div style="display:flex;gap:8px;margin:10px 0 4px">' + (o.enabled ? '<button type="button" class="btn" id="bdOff" style="flex:1;background:#DC2626">⏸ إيقاف العرض</button>'
+          : '<button type="button" class="btn" id="bdOn" style="flex:1;background:#16A34A">▶ تفعيل العرض</button>') + '</div>' +
+        '<p class="small muted" style="margin:4px 0 10px">' + (o.enabled ? 'العرض شغال: بيظهر للعملاء المستحقين بس وبيتطبق تلقائي. الإيقاف بيلغي الخصم فوراً من غير ما الإعدادات تتمسح.' : 'العرض متوقف: مش بيظهر لأي عميل ومش بيتطبق. الإعدادات محفوظة زي ما هي.') + '</p>' +
+        '<div id="bdErr"></div>' +
+        '<details class="so-corr" id="bdForm"' + (o.enabled ? '' : ' open') + '><summary>⚙️ إعدادات العرض</summary>' +
+        '<label>اسم العرض</label><input id="bdName" maxlength="60" value="' + esc(o.name) + '">' +
+        '<div class="pm-grid"><div><label>نوع العرض</label><select id="bdType">' + Object.keys(BT_TYPES).map(function (k) { return '<option value="' + k + '"' + (o.type === k ? ' selected' : '') + '>' + BT_TYPES[k] + '</option>'; }).join('') + '</select></div>' +
+        '<div id="bdValW"><label id="bdValL">قيمة الخصم</label><input id="bdVal" inputmode="decimal" value="' + (o.value || '') + '"></div>' +
+        '<div id="bdMaxW"><label>أقصى خصم بالجنيه</label><input id="bdMax" inputmode="decimal" value="' + (o.max || '') + '" placeholder="من غير حد"></div>' +
+        '<div id="bdKindW"><label>نوع الكود</label><select id="bdKind"><option value="percent"' + (o.code_kind !== 'fixed' ? ' selected' : '') + '>نسبة %</option><option value="fixed"' + (o.code_kind === 'fixed' ? ' selected' : '') + '>مبلغ ثابت</option></select></div></div>' +
+        '<div id="bdGiftW"><label>وصف الهدية</label><input id="bdGift" maxlength="200" value="' + esc(o.gift) + '"></div>' +
+        '<div class="pm-grid"><div><label>تاريخ بداية العرض</label><input type="date" id="bdStart" value="' + esc(o.start) + '"></div><div><label>تاريخ انتهاء العرض</label><input type="date" id="bdEnd" value="' + esc(o.end) + '"></div></div>' +
+        '<p class="small muted" style="margin:4px 0 0">سيبهم فاضيين لو العرض من غير فترة محددة. العرض مش بيتطبق برا الفترة دي.</p>' +
+        '<label>العملاء المستحقين (حسب تاريخ الميلاد المسجل)</label><select id="bdTarget">' + Object.keys(BT_TARGET).map(function (k) { return '<option value="' + k + '"' + (o.target === k ? ' selected' : '') + '>' + BT_TARGET[k] + '</option>'; }).join('') + '</select>' +
+        '<div id="bdDateW"><label>العملاء اللي عيد ميلادهم يوم</label><input type="date" id="bdDate" value="' + esc(o.target_date) + '"></div>' +
+        '<div id="bdRangeW" class="pm-grid"><div><label>من تاريخ</label><input type="date" id="bdFrom" value="' + esc(o.target_from) + '"></div><div><label>إلى تاريخ</label><input type="date" id="bdTo" value="' + esc(o.target_to) + '"></div></div>' +
+        '<p class="small muted" id="bdTargetHint" style="margin:4px 0 0"></p>' +
+        '<div id="bdScopeW"><label>المنتجات المشمولة بالخصم في «تصفح منتجاتنا»</label><select id="bdScope"><option value="all"' + (scoped ? '' : ' selected') + '>كل المنتجات</option><option value="some"' + (scoped ? ' selected' : '') + '>منتجات أو أقسام معينة</option></select>' +
+        '<div id="bdScopeBox" class="' + (scoped ? '' : 'hidden') + '"><label>الأقسام</label><div class="pm-pick">' + SD.categories.map(function (c) {
+          return '<label><input type="checkbox" data-bcid="' + esc(c.id) + '"' + (CIDS.indexOf(c.id) >= 0 ? ' checked' : '') + '>' + esc((c.icon ? c.icon + ' ' : '') + c.name) + '</label>';
+        }).join('') + '</div><label>المنتجات</label><div class="pm-pick">' + SD.products.map(function (x) {
+          return '<label><input type="checkbox" data-bpid="' + esc(x.id) + '"' + (PIDS.indexOf(x.id) >= 0 ? ' checked' : '') + '>' + esc(x.name) + '</label>';
+        }).join('') + (SD.products.length ? '' : '<div class="small muted">مفيش منتجات لسه</div>') + '</div></div></div>' +
+        '<div style="height:12px"></div><button type="button" class="btn" id="bdSave">حفظ إعدادات العرض</button></details>';
+      function sync() {
+        var t = $('#bdType').value, g = $('#bdTarget').value;
+        $('#bdValL').textContent = t === 'points' ? 'عدد النقاط' : t === 'fixed' ? 'قيمة الخصم (' + (o.currency || 'ج.م') + ')' : t === 'gift' ? 'قيمة الهدية (اختياري)' : t === 'code' ? 'قيمة الكود' : 'نسبة الخصم %';
+        $('#bdMaxW').style.display = t === 'percent' || (t === 'code' && $('#bdKind').value === 'percent') ? '' : 'none';
+        $('#bdKindW').style.display = t === 'code' ? '' : 'none';
+        $('#bdGiftW').style.display = t === 'gift' ? '' : 'none';
+        $('#bdScopeW').style.display = t === 'percent' || t === 'fixed' ? '' : 'none';
+        $('#bdDateW').style.display = g === 'date' ? '' : 'none';
+        $('#bdRangeW').style.display = g === 'range' ? '' : 'none';
+        $('#bdTargetHint').textContent = g === 'today' ? 'العرض بيظهر للعميل يوم عيد ميلاده بس.' : g === 'week' ? 'العرض بيظهر للعملاء اللي عيد ميلادهم في الأسبوع الحالي (من السبت للجمعة).'
+          : g === 'date' ? 'العرض بيظهر للعملاء اللي عيد ميلادهم في اليوم ده (اليوم والشهر)، طول فترة العرض.' : 'العرض بيظهر للعملاء اللي عيد ميلادهم بين التاريخين دول (اليوم والشهر)، طول فترة العرض.';
+      }
+      sync(); $('#bdType').onchange = sync; $('#bdTarget').onchange = sync; $('#bdKind').onchange = sync;
+      $('#bdScope').onchange = function () { $('#bdScopeBox').classList.toggle('hidden', this.value !== 'some'); };
+      var tog = $('#bdOn') || $('#bdOff');
+      tog.onclick = function () {
+        var on = !!$('#bdOn'); busy(tog, true); $('#bdErr').innerHTML = '';
+        sh('setBirthdayOffer', { enabled: on }).then(function () { toast(on ? 'عرض عيد الميلاد اتفعّل ✓' : 'عرض عيد الميلاد اتوقف، والخصم اتلغى فوراً'); go('birthdays'); })
+          .catch(function (e) { busy(tog, false); $('#bdErr').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+      };
+      $('#bdSave').onclick = function () {
+        var btn = this, some = $('#bdScope').value === 'some' && $('#bdScopeW').style.display !== 'none';
+        var cids = some ? $all('[data-bcid]', box).filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.bcid; }) : [];
+        var pids = some ? $all('[data-bpid]', box).filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.bpid; }) : [];
+        $('#bdErr').innerHTML = '';
+        if (some && !cids.length && !pids.length) { $('#bdErr').innerHTML = '<div class="err">اختار قسم أو منتج واحد على الأقل</div>'; return; }
+        busy(btn, true);
+        sh('saveBirthdayOffer', { name: $('#bdName').value, type: $('#bdType').value, value: numVal($('#bdVal')), max: numVal($('#bdMax')), gift: $('#bdGift').value, code_kind: $('#bdKind').value,
+          start: $('#bdStart').value, end: $('#bdEnd').value, target: $('#bdTarget').value, target_date: $('#bdDate').value, target_from: $('#bdFrom').value, target_to: $('#bdTo').value,
+          product_ids: pids, category_ids: cids })
+          .then(function () { toast('تم حفظ إعدادات العرض ✓'); go('birthdays'); })
+          .catch(function (e) { busy(btn, false); $('#bdErr').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; $('#bdErr').scrollIntoView({ block: 'center' }); });
+      };
+    }).catch(function (e) { box.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  }
+  var _bdays = window.viewBirthdays;
+  if (_bdays) window.viewBirthdays = function (v) {
+    _bdays.apply(this, arguments);
+    var box = document.createElement('div'); box.className = 'card'; box.id = 'bdOffer'; box.style.marginBottom = '12px';
+    box.innerHTML = '<div class="empty" style="padding:8px"><span class="spinner"></span></div>';
+    v.parentNode.insertBefore(box, v); bdOfferCard(box);
+  };
 
   /* ---------------- سجل المكافآت (الترحيب + عيد الميلاد) ---------------- */
   var BT_AR = { points: 'نقاط', code: 'كود خصم', percent: 'خصم %', fixed: 'خصم مبلغ', gift: 'هدية' };

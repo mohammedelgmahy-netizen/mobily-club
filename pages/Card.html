@@ -379,9 +379,9 @@ function render() {
     var B = D.birthday;
     oh += '<div class="bday' + (B.status === 'used' ? ' used' : '') + '" id="bdayBox"><div class="bday-ic">🎂</div><div><b>' + (en ? 'Happy birthday, ' : 'كل سنة وانت طيب يا ') + esc(c.name) + '!</b>' +
       (B.type === 'points' ? '<div>' + (en ? 'Added to your wallet: ' : 'اتضافلك في محفظتك: ') + '<b>' + esc(B.offer_text) + '</b> ✓</div>'
-        : B.type === 'code' ? '<div>' + (en ? 'Your birthday gift: ' : 'هدية عيد ميلادك: ') + '<b dir="auto">' + esc(B.offer_text) + '</b></div><div class="small">⏳ ' + x.until + ' ' + esc(fmtDate(B.end + 'T12:00:00', LANG)) + ' · ' + (en ? 'use it in our online shop' : 'استخدمه في «تصفح منتجاتنا»') + '</div>'
+        : B.type === 'code' ? '<div>' + (en ? 'Your birthday gift: ' : 'هدية عيد ميلادك: ') + '<b dir="auto">' + esc(B.offer_text) + '</b></div><div class="small">' + (B.end ? '⏳ ' + x.until + ' ' + esc(fmtDate(B.end + 'T12:00:00', LANG)) + ' · ' : '') + (en ? 'use it in our online shop' : 'استخدمه في «تصفح منتجاتنا»') + '</div>'
         : B.status === 'used' ? '<div class="small">' + (en ? 'You used your birthday gift ✓' : 'استخدمت هدية عيد ميلادك ✓') + '</div>'
-        : '<div>' + (en ? 'Your birthday gift: ' : 'هدية عيد ميلادك: ') + '<b>' + esc(B.offer_text) + '</b></div><div class="small">⏳ ' + x.until + ' ' + esc(fmtDate(B.end + 'T12:00:00', LANG)) + ' · ' + (en ? 'show this card at the shop' : 'اعرض الكارت ده في المحل') + '</div>') +
+        : '<div>' + (B.name && !en ? esc(B.name) + ': ' : (en ? 'Your birthday gift: ' : 'هدية عيد ميلادك: ')) + '<b>' + esc(B.offer_text) + '</b></div><div class="small">' + (B.end ? '⏳ ' + x.until + ' ' + esc(fmtDate(B.end + 'T12:00:00', LANG)) + ' · ' : '') + (en ? 'show this card at the shop' : (B.type === 'percent' || B.type === 'fixed' ? 'اعرض الكارت ده في المحل، أو اطلب من «تصفح منتجاتنا» والخصم بيتطبق تلقائي' : 'اعرض الكارت ده في المحل')) + '</div>') +
       '</div></div>';
   }
   oh += '<h2 style="margin-top:20px">' + x.offers + '</h2>';
@@ -522,6 +522,6 @@ function alertBox(m) { $('#waMsg').textContent = m; }
   window.addEventListener('appinstalled', function(){ b.remove(); });
 })();
 </script>
-<script src="shop.js?v=24ee16cabe"></script>
+<script src="shop.js?v=9fb6fc04f4"></script>
 </body>
 </html>

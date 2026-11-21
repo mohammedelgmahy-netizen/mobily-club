@@ -1194,10 +1194,9 @@ function viewBirthdays(v) {
     var cur = r.current, up = r.upcoming;
     var pending = function () { return cur.filter(function (x) { return x.wa_opt_in && !x.wa_sent_at; }); };
     v.innerHTML =
-      (!r.enabled ? '<div class="err" style="margin-bottom:12px">عرض عيد الميلاد متوقف دلوقتي، فمش هيظهر للعملاء ولا في الكاشير. فعّله واختار نوعه وقيمته من الإعدادات ← 🎂 عروض أعياد الميلاد.' +
-        (can('settings') ? ' <button class="btn ghost sm" id="bdSet" type="button">افتح الإعدادات</button>' : '') + '</div>' : '') +
+      (!r.enabled ? '<div class="err" style="margin-bottom:12px">عرض عيد الميلاد متوقف دلوقتي، فمش هيظهر للعملاء ولا في الكاشير.' + (can('settings') ? ' فعّله من «🎂 عرض عيد الميلاد» فوق.' : '') + '</div>' : '') +
       '<div class="grid kpis" style="margin-bottom:12px">' +
-      '<div class="kpi"><span>العرض الحالي</span><b style="font-size:17px">' + esc(r.offer_text) + '</b><span>لمدة ' + r.days + ' يوم من يوم الميلاد</span></div>' +
+      '<div class="kpi"><span>العرض الحالي</span><b style="font-size:17px">' + esc(r.offer_text) + '</b></div>' +
       '<div class="kpi"><span>عرضهم شغال دلوقتي</span><b id="bdCur">' + fmtNum(cur.length) + '</b></div>' +
       '<div class="kpi"><span>مستنيين تهنئة</span><b id="bdPend">' + fmtNum(pending().length) + '</b></div>' +
       '<div class="kpi"><span>عملاء بدون تاريخ ميلاد</span><b>' + fmtNum(r.no_birthdate) + '</b></div></div>' +
@@ -1497,6 +1496,7 @@ function viewSettings(v) {
       '<p class="small muted">كل قواعد البرنامج هنا قابلة للتعديل بدون مبرمج. التعديل يسري على العمليات الجديدة فقط، والعمليات السابقة تحتفظ بالقواعد التي سُجلت بها.</p><div id="stErr"></div>';
     Object.keys(GROUPS).forEach(function (g) {
       var rows = r.settings.filter(function (s) { return s.group === g; });
+      if (g === 'birthday') { if (rows.length) html += '<div class="setgroup"><h3>' + GROUPS[g] + '</h3><p class="small">التحكم في عرض عيد الميلاد (تفعيل/إيقاف، نوعه وقيمته، فترته، والعملاء المستحقين) بقى في صفحة «أعياد الميلاد». <a href="#" id="stBday">افتحها ←</a></p></div>'; return; }
       if (!rows.length) return;
       html += '<div class="setgroup"><h3>' + GROUPS[g] + '</h3>' + rows.map(function (s) {
         var input;
@@ -1515,6 +1515,7 @@ function viewSettings(v) {
       '<div class="row"><input id="brName" placeholder="اسم فرع جديد"><input id="brPhone" placeholder="رقم الفرع"></div><div style="height:8px"></div><button class="btn ghost sm" id="brAdd" type="button">+ إضافة فرع</button></div>';
     html += '<div class="card" style="margin-top:12px"><h2>مراجعة الأرصدة</h2><p class="small muted">يعيد حساب رصيد كل عميل من سجل الحركات ويصحح أي اختلاف في عمود الرصيد السريع.</p><button class="btn ghost sm" id="recalcBtn" type="button">إعادة حساب كل الأرصدة</button></div>';
     v.innerHTML = html;
+    if ($('#stBday')) $('#stBday').onclick = function (e) { e.preventDefault(); go('birthdays'); };
     $('#stSave').onclick = function () {
       var values = {};
       $all('[data-key]', v).forEach(function (el) { values[el.dataset.key] = el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value; });
@@ -1655,6 +1656,6 @@ function viewQR(v) {
 boot();
 </script>
 
-<script src="shop-admin.js?v=7232edd4bb"></script>
+<script src="shop-admin.js?v=acbc503a06"></script>
 </body>
 </html>
