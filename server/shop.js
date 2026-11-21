@@ -175,13 +175,14 @@ export const ORDER_STATUS = ['pending', 'approved', 'preparing', 'ready', 'shipp
 const ORDER_COLS = `o.id, o.order_no, o.customer_id, o.customer_name, o.customer_phone, o.member_no, o.product_id, o.product_name, o.product_code,
   o.color, o.variant, o.qty, o.unit_price, o.total, o.notes, o.status, o.reject_reason, o.history, o.created_at, o.updated_at,
   o.items, o.subtotal, o.product_discount, o.promo_code, o.promo_discount, o.shipping, o.method, o.delivery, o.address, o.admin_notes, o.branch_id, o.branch_name,
-  o.invoice_status, o.invoice_no, o.invoice_points, o.invoice_balance, o.invoice_error, o.invoice_at, o.completed_at, o.stock_state`;
+  o.invoice_status, o.invoice_no, o.invoice_points, o.invoice_balance, o.invoice_error, o.invoice_at, o.completed_at, o.stock_state,
+  o.birthday_discount, o.birthday_name, o.birthday_reward_id`;
 const PROMO_CODE = /^[A-Za-z0-9_-]{3,30}$/;
 
 async function customerByToken(sql, token) {
   const t = T(token);
   if (!/^[a-f0-9]{64}$/.test(t)) throw new Error('افتح الكارت بتاعك الأول علشان تقدر تطلب');
-  const r = await sql.unsafe('select customer_id, name, phone, member_no, status, points_balance from mobily.mc_customers where access_token = $1', [t]);
+  const r = await sql.unsafe('select customer_id, name, phone, member_no, status, points_balance, birthdate from mobily.mc_customers where access_token = $1', [t]);
   if (!r.length) throw new Error('افتح الكارت بتاعك الأول علشان تقدر تطلب');
   if (r[0].status !== 'active') throw new Error('عضويتك موقوفة حالياً. تواصل مع المحل.');
   return r[0];
@@ -236,6 +237,44 @@ function promoState(pr, today) {
   if (pr.ends_on && dateStr(pr.ends_on) < today) return 'expired';
   if (pr.starts_on && dateStr(pr.starts_on) > today) return 'scheduled';
   return 'active';
+}
+
+/* ---------------- عرض عيد الميلاد في «تصفح منتجاتنا» ----------------
+ * العرض بيتطبق تلقائي لو: مفعّل + جوه فترة العرض + العميل مستحق حسب تاريخ ميلاده المسجل (اليوم/الأسبوع/تاريخ محدد/فترة)
+ * + ما استخدمش عرض السنة دي قبل كده. الخصم (نسبة أو مبلغ ثابت) على المنتجات المشمولة بس، ومش بيغير أي سعر أصلي ولا كود خصم. */
+const BDAY_KEYS = ['bday_enabled', 'bday_reward_type', 'bday_value', 'bday_max_discount', 'bday_gift_text', 'bday_code_kind', 'bday_name', 'bday_start', 'bday_end',
+  'bday_target', 'bday_target_date', 'bday_target_from', 'bday_target_to', 'bday_product_ids', 'bday_category_ids', 'currency'];
+const BDAY_DEFAULT_NAME = 'عرض عيد الميلاد';
+async function bdayOffer(q, c) {
+  if (!c || !c.birthdate) return null; // العميل من غير تاريخ ميلاد مش مستحق
+  const s = await settingsMap(q, BDAY_KEYS);
+  if (!isTrue(s.bday_enabled)) return null;
+  const w = bdayWin(s, c.birthdate, await cairoToday(q));
+  if (!w) return null;
+  const [r] = await q.unsafe('select reward_id, reward_type, value, max_discount, status, end_date from mobily.mc_birthdayrewards where customer_id = $1 and occasion = $2', [c.customer_id, w.occasion]);
+  if (r && r.status !== 'available') return null; // عرض السنة دي اتستخدم
+  const type = r ? r.reward_type : (s.bday_reward_type || 'percent');
+  if (type !== 'percent' && type !== 'fixed') return null; // النوع ده مش خصم على الطلب (هدية/نقاط/كود)
+  const value = Number(r ? r.value : s.bday_value) || 0, max = type === 'percent' ? Number(r ? r.max_discount : s.bday_max_discount) || 0 : 0;
+  if (!(value > 0)) return null;
+  const cur = s.currency || 'ج.م';
+  return {
+    name: T(s.bday_name) || BDAY_DEFAULT_NAME, type, value, max, occasion: w.occasion, start: w.start, end: (r && dateStr(r.end_date)) || w.end || '',
+    reward_id: r ? r.reward_id : '', product_ids: J(s.bday_product_ids, []), category_ids: J(s.bday_category_ids, []),
+    text: type === 'fixed' ? 'خصم ' + value + ' ' + cur : 'خصم ' + value + '%' + (max > 0 ? ' (بحد أقصى ' + max + ' ' + cur + ')' : ''),
+  };
+}
+const bdayCovers = (bo, l) => (!bo.product_ids.length && !bo.category_ids.length) || bo.product_ids.indexOf(l.product_id) >= 0 || (!!l.category_id && bo.category_ids.indexOf(l.category_id) >= 0);
+// عرض عيد الميلاد للطلب: بيتسجل «اتستخدم» أول ما الطلب يتأكد، ويرجع «متاح» لو الطلب اتلغى أو اترفض
+async function bdaySync(tx, o, st, who) {
+  if (!o.birthday_reward_id) return;
+  if (ENDED.indexOf(st) >= 0) {
+    await tx.unsafe(`update mobily.mc_birthdayrewards set status = 'available', invoice_no = '', discount_amount = 0, used_at = null, used_by = ''
+      where reward_id = $1 and status = 'used' and invoice_no = $2`, [o.birthday_reward_id, 'ONL-' + o.order_no]);
+  } else {
+    await tx.unsafe(`update mobily.mc_birthdayrewards set status = 'used', invoice_no = $2, discount_amount = $3, used_at = now(), used_by = $4
+      where reward_id = $1 and status = 'available'`, [o.birthday_reward_id, 'ONL-' + o.order_no, Number(o.birthday_discount) || 0, who || '']);
+  }
 }
 
 /**
@@ -323,14 +362,25 @@ async function quote(q, customer, p, lockPromo) {
     }
   }
   const promo_discount = promo && promo.ok ? promo.discount : 0;
+  // عرض عيد الميلاد (تلقائي من غير ما العميل يكتب حاجة)
+  let birthday = null, birthday_discount = 0;
+  const bo = await bdayOffer(q, customer);
+  if (bo) {
+    const el = good.filter((l) => bdayCovers(bo, l));
+    const base = money2(el.reduce((s2, l) => s2 + l.line_total, 0));
+    let d = bo.type === 'percent' ? base * bo.value / 100 : bo.value;
+    if (bo.type === 'percent' && bo.max > 0) d = Math.min(d, bo.max);
+    d = money2(Math.max(0, Math.min(d, base, items_total - promo_discount)));
+    if (d > 0) { birthday_discount = d; birthday = { name: bo.name, text: bo.text, type: bo.type, value: bo.value, end: bo.end, discount: d, reward_id: bo.reward_id, occasion: bo.occasion, start: bo.start, max: bo.max }; }
+  }
   const set = await shopSettings(q);
   const delivery = p.delivery === 'delivery' ? 'delivery' : 'pickup';
   const shipping = delivery === 'delivery' && set.delivery_enabled ? money2(set.delivery_fee) : 0;
-  const total = money2(Math.max(0, items_total - promo_discount) + shipping);
+  const total = money2(Math.max(0, items_total - promo_discount - birthday_discount) + shipping);
   const brs = await branches(q);
   return {
     branches: brs, saved_address: await savedAddress(q, customer.customer_id),
-    lines, subtotal, product_discount, items_total, promo, promo_discount, delivery, shipping, total,
+    lines, subtotal, product_discount, items_total, promo, promo_discount, birthday: birthday ? Object.assign({}, birthday, { reward_id: undefined, occasion: undefined }) : null, birthday_discount, _bday: birthday, delivery, shipping, total,
     delivery_enabled: set.delivery_enabled, delivery_fee: set.delivery_fee,
     customer: { name: customer.name, phone: customer.phone, member_no: customer.member_no },
   };
@@ -344,6 +394,7 @@ async function checkout(sql, c, p) {
   return sql.begin(async (tx) => {
     const [cnt] = await tx.unsafe("select count(*)::int n from mobily.mc_shop_orders where customer_id = $1 and created_at > now() - interval '1 day'", [c.customer_id]);
     if (cnt.n >= 20) throw new Error('وصلت للحد الأقصى للطلبات النهارده. كلم المحل لو محتاج حاجة.');
+    await tx.unsafe(`select pg_advisory_xact_lock(${CORE_LOCK})`); // عرض عيد الميلاد مرة واحدة بس حتى لو طلبين في نفس اللحظة
     const qt = await quote(tx, c, p, true);
     const badLine = qt.lines.find((l) => l.error);
     if (badLine) throw new Error((badLine.name ? '«' + badLine.name + (badLine.color ? ' - ' + badLine.color : '') + '»: ' : '') + badLine.error);
@@ -366,12 +417,29 @@ async function checkout(sql, c, p) {
     const hist = JSON.stringify([{ s: 'pending', at: new Date().toISOString(), by: 'customer' }]);
     const [o] = await tx.unsafe(`insert into mobily.mc_shop_orders (order_no, customer_id, customer_name, customer_phone, member_no, product_id, product_name, product_code,
         color, variant, qty, unit_price, total, notes, status, history, items, subtotal, product_discount, promo_id, promo_code, promo_discount, shipping, method, delivery, address,
-        branch_id, branch_name, stock_state)
+        branch_id, branch_name, stock_state, birthday_discount, birthday_name)
       values (nextval('mobily.mc_shop_order_no'), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending', $14::text::jsonb, $15::text::jsonb,
-        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, 'reserved') returning id, order_no`,
+        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, 'reserved', $27, $28) returning id, order_no`,
       [c.customer_id, c.name, c.phone, c.member_no, first.product_id, title, first.code || '', first.color, first.variant, qtySum, first.unit_price, qt.total, notes, hist,
         JSON.stringify(items), qt.subtotal, qt.product_discount, qt.promo && qt.promo.ok ? qt.promo.id : null, qt.promo && qt.promo.ok ? qt.promo.code : '',
-        qt.promo_discount, qt.shipping, method, delivery, delivery === 'delivery' ? address : '', branch ? branch.id : '', branch ? branch.name : '']);
+        qt.promo_discount, qt.shipping, method, delivery, delivery === 'delivery' ? address : '', branch ? branch.id : '', branch ? branch.name : '',
+        qt.birthday_discount, qt.birthday ? qt.birthday.name : '']);
+    if (qt._bday) { // تسجيل إن عرض عيد الميلاد اتستخدم في الطلب ده
+      const b = qt._bday, inv = 'ONL-' + o.order_no;
+      let rw = b.reward_id;
+      if (rw) {
+        const u = await tx.unsafe(`update mobily.mc_birthdayrewards set status = 'used', invoice_no = $2, discount_amount = $3, used_at = now(), used_by = $4
+          where reward_id = $1 and status = 'available' returning reward_id`, [rw, inv, b.discount, c.name]);
+        if (!u.length) throw new Error('عرض عيد الميلاد اتستخدم قبل كده. حدّث الصفحة.');
+      } else {
+        rw = rid('B');
+        await tx.unsafe(`insert into mobily.mc_birthdayrewards (reward_id, customer_id, member_no, occasion, start_date, end_date, reward_type, value, max_discount, gift_text, status,
+            txn_id, invoice_no, discount_amount, used_at, used_by, wa_sent_by, created_at, promo_code, points_entry)
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, '', 'used', '', $10, $11, now(), $12, '', now(), '', '')`,
+        [rw, c.customer_id, c.member_no, b.occasion, b.start, b.end || '', b.type, b.value, b.max || 0, inv, b.discount, c.name]);
+      }
+      await tx.unsafe('update mobily.mc_shop_orders set birthday_reward_id = $2 where id = $1', [o.id, rw]);
+    }
     // حجز الكمية فوراً (لو عميل تاني سبق على آخر قطعة: الطلب ده بيترفض برسالة فيها المتاح)
     await reserveFor(tx, items, o, c.name, 'حجز لطلب جديد');
     const total = money2(qt.total);
@@ -439,7 +507,7 @@ async function invoiceOrder(sql, ctx, id, token) {
   if (!ctx.core) return null;
   const [o] = await sql.unsafe(`update mobily.mc_shop_orders set invoice_status = 'working', invoice_claim_at = now()
     where id = $1 and status = 'completed' and (invoice_status = 'pending' or (invoice_status = 'working' and invoice_claim_at < now() - interval '2 minutes'))
-    returning id, order_no, customer_id, total, shipping, items, subtotal, product_discount, promo_code, promo_discount, delivery, branch_name, address, completed_at, created_at`, [id]);
+    returning id, order_no, customer_id, total, shipping, items, subtotal, product_discount, promo_code, promo_discount, birthday_name, birthday_discount, delivery, branch_name, address, completed_at, created_at`, [id]);
   if (!o) return null;
   const invNo = 'ONL-' + o.order_no;
   const details = {
@@ -447,6 +515,7 @@ async function invoiceOrder(sql, ctx, id, token) {
     items: J(o.items, []).map((i) => ({ name: i.name, code: i.code || '', color: i.color || '', variant: i.variant || '', qty: Number(i.qty), unit_price: Number(i.unit_price),
       old_price: Number(i.old_price || 0), line_discount: Number(i.line_discount || 0), line_total: Number(i.line_total || 0) })),
     subtotal: Number(o.subtotal), product_discount: Number(o.product_discount), promo_code: o.promo_code || '', promo_discount: Number(o.promo_discount),
+    birthday_offer: o.birthday_name || '', birthday_discount: Number(o.birthday_discount || 0),
     shipping: Number(o.shipping || 0), total: Number(o.total), delivery: o.delivery, branch_name: o.branch_name || '', address: o.address || '',
   };
   const fail = async (msg) => {
@@ -516,6 +585,7 @@ function publicOrder(o, imgs) {
     id: o.id, order_no: Number(o.order_no), product_id: o.product_id, product_name: o.product_name, product_code: o.product_code,
     color: o.color, variant: o.variant, qty: o.qty, unit_price: Number(o.unit_price), total: Number(o.total), notes: o.notes,
     items, subtotal: Number(o.subtotal), product_discount: Number(o.product_discount), promo_code: o.promo_code || '', promo_discount: Number(o.promo_discount),
+    birthday_name: o.birthday_name || '', birthday_discount: Number(o.birthday_discount || 0),
     shipping: Number(o.shipping), method: o.method, delivery: o.delivery, address: o.address || '', branch_name: o.branch_name || '',
     status: o.status, reject_reason: o.reject_reason, image: items[0] ? items[0].image : '', created_at: o.created_at, updated_at: o.updated_at,
     history: J(o.history, []).map((h) => ({ s: h.s, at: h.at })),
@@ -550,7 +620,11 @@ async function customerShop(sql, ctx, action, p) {
   }
   if (action === 'notifications') return notifList(sql, 'customer', c.customer_id, 'c:' + c.customer_id, '-infinity', 50);
   if (action === 'readNotifications') { await markRead(sql, 'customer', c.customer_id, 'c:' + c.customer_id, '-infinity', p.ids === 'all' ? 'all' : p.ids); return { done: true }; }
-  if (action === 'quote') return quote(sql, c, p, false);
+  if (action === 'quote') { const q0 = await quote(sql, c, p, false); delete q0._bday; return q0; }
+  if (action === 'birthday') { // العرض للعميل المستحق بس (للشريط والـ Badge في تصفح المنتجات)
+    const bo = await bdayOffer(sql, c);
+    return bo ? { name: bo.name, text: bo.text, type: bo.type, value: bo.value, max: bo.max, end: bo.end, product_ids: bo.product_ids, category_ids: bo.category_ids, customer: c.name } : null;
+  }
   if (action === 'saveAddress') { // عنوان التوصيل المحفوظ في حساب العميل
     const a = T(p.address).slice(0, 500);
     if (a.length < 5) throw new Error('اكتب العنوان بالتفصيل');
@@ -566,9 +640,10 @@ async function customerShop(sql, ctx, action, p) {
   if (action === 'cancelOrder') {
     if (!UUID.test(T(p.id))) throw new Error('الطلب غير موجود');
     const r = await sql.begin(async (tx) => {
-      const [o] = await tx.unsafe("select id, order_no, items, stock_state from mobily.mc_shop_orders where id = $1 and customer_id = $2 and status = 'pending' for update", [T(p.id), c.customer_id]);
+      const [o] = await tx.unsafe("select id, order_no, items, stock_state, birthday_reward_id, birthday_discount from mobily.mc_shop_orders where id = $1 and customer_id = $2 and status = 'pending' for update", [T(p.id), c.customer_id]);
       if (!o) return [];
       const ss = await stockTo(tx, o, 'released', c.name);
+      await bdaySync(tx, o, 'cancelled', c.name);
       await setActor(tx, { id: c.customer_id, name: c.name, role: 'customer', reason: 'العميل لغى الطلب' });
       const u = await tx.unsafe(`update mobily.mc_shop_orders set status = 'cancelled', stock_state = $3, reject_reason = 'العميل لغى الطلب', updated_at = now(),
           history = history || $4::text::jsonb where id = $1 and customer_id = $2 returning id, order_no`,
@@ -659,12 +734,49 @@ function bdayKey(birthdate, year) { // 29 فبراير = 28 فبراير في ا
 }
 const addDays = (key, n) => new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)) + n)).toISOString().slice(0, 10);
 
+/* BDAY-RULE-START — نفس الدالة دي بالظبط متحطوطة جوه bundle.js (الكاشير وكارت العميل) علشان القاعدة تبقى واحدة في كل مكان.
+ * مين يستحق عرض عيد الميلاد النهارده؟ s = الإعدادات، birthdate = تاريخ ميلاد العميل، today = تاريخ النهارده (القاهرة) YYYY-MM-DD.
+ * بترجع { occasion (السنة: العرض مرة واحدة بس في السنة), start, end ('' = من غير تاريخ انتهاء) } أو null. */
+function bdayWin(s, birthdate, today) {
+  var D = /^\d{4}-\d{2}-\d{2}$/, p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+  var key = function (b, y) { var m = Number(String(b).slice(5, 7)), d = Number(String(b).slice(8, 10)); if (!m || !d) return ''; var lp = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; return y + '-' + p2(m) + '-' + p2(m === 2 && d === 29 && !lp ? 28 : d); };
+  var add = function (k, n) { return new Date(Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)) + n)).toISOString().slice(0, 10); };
+  if (!D.test(String(birthdate || '')) || !D.test(String(today || ''))) return null;
+  var st = String(s.bday_start || ''), en = String(s.bday_end || '');
+  if (D.test(st) && today < st) return null;
+  if (D.test(en) && today > en) return null;
+  var cap = function (e) { return D.test(en) && (!e || en < e) ? en : e; };
+  var ty = Number(today.slice(0, 4)), mode = String(s.bday_target || 'today'), md = key(birthdate, ty).slice(5);
+  if (mode === 'week') { // الأسبوع الحالي: من السبت للجمعة
+    var ws = add(today, -((new Date(today + 'T00:00:00Z').getUTCDay() + 1) % 7)), we = add(ws, 6);
+    var ys = [Number(ws.slice(0, 4)), Number(we.slice(0, 4))];
+    for (var i = 0; i < ys.length; i++) { var k = key(birthdate, ys[i]); if (k >= ws && k <= we) return { occasion: String(ys[i]), start: ws, end: cap(we) }; }
+    return null;
+  }
+  if (mode === 'date') { // تاريخ محدد (اليوم والشهر)
+    var dd = String(s.bday_target_date || '');
+    if (!D.test(dd) || key(dd, ty).slice(5) !== md) return null;
+    return { occasion: String(ty), start: D.test(st) ? st : today, end: cap('') };
+  }
+  if (mode === 'range') { // فترة من تاريخ لتاريخ (اليوم والشهر)
+    var f = String(s.bday_target_from || ''), t = String(s.bday_target_to || '');
+    if (!D.test(f) || !D.test(t)) return null;
+    var a = key(f, ty).slice(5), b = key(t, ty).slice(5);
+    if (!(a <= b ? md >= a && md <= b : md >= a || md <= b)) return null;
+    return { occasion: String(ty), start: D.test(st) ? st : today, end: cap('') };
+  }
+  if (key(birthdate, ty) !== today) return null; // عيد ميلاد النهارده
+  return { occasion: String(ty), start: today, end: today };
+}
+/* BDAY-RULE-END */
+export { bdayWin };
+
 // تنبيه الإدارة قبل عيد الميلاد بيوم + منح عرض عيد الميلاد (نقاط / كود خصم) أول يوم في فترته. آمن للتكرار.
 export async function birthdayTasks(sql) {
   const today = await cairoToday(sql), tomorrow = addDays(today, 1);
-  const s = await settingsMap(sql, ['bday_enabled', 'bday_reward_type', 'bday_value', 'bday_max_discount', 'bday_valid_days', 'bday_code_kind', 'currency']);
+  const s = await settingsMap(sql, BDAY_KEYS);
   const enabled = isTrue(s.bday_enabled), type = s.bday_reward_type || 'percent', value = Number(s.bday_value) || 0;
-  const days = Math.max(1, Math.min(31, Math.floor(Number(s.bday_valid_days) || 1))), cur = s.currency || 'ج.م';
+  const cur = s.currency || 'ج.م';
   const custs = await sql.unsafe("select customer_id, member_no, name, birthdate from mobily.mc_customers where status = 'active' and birthdate ~ '^\\d{4}-\\d{2}-\\d{2}$'");
   const offerText = type === 'points' ? value + ' نقطة هدية في المحفظة' : type === 'code' ? 'كود خصم ' + (s.bday_code_kind === 'fixed' ? value + ' ' + cur : value + '%') + ' للمتجر'
     : type === 'gift' ? 'هدية' : type === 'fixed' ? 'خصم ' + value + ' ' + cur : 'خصم ' + value + '%';
@@ -677,10 +789,10 @@ export async function birthdayTasks(sql) {
       reminders++;
     }
     if (!enabled || (type !== 'points' && type !== 'code') || !(value > 0)) continue;
-    const ty = Number(today.slice(0, 4));
-    for (const yy of [ty, ty - 1]) {
-      const start = bdayKey(c.birthdate, yy), end = start && addDays(start, days - 1);
-      if (!start || today < start || today > end) continue;
+    { // نفس قاعدة الاستحقاق بتاعة العرض (اليوم / الأسبوع / تاريخ محدد / فترة) وجوه فترة العرض
+      const w = bdayWin(s, c.birthdate, today);
+      if (!w) continue;
+      const yy = w.occasion, start = w.start, end = w.end || null;
       const g = await sql.begin(async (tx) => {
         await tx.unsafe(`select pg_advisory_xact_lock(${CORE_LOCK})`);
         const ex = await tx.unsafe('select 1 from mobily.mc_birthdayrewards where customer_id = $1 and occasion = $2', [c.customer_id, String(yy)]);
@@ -704,12 +816,12 @@ export async function birthdayTasks(sql) {
           if (!code) return false;
           text = 'كود ' + code + ': ' + offerText;
           await notify(tx, { audience: 'customer', customer_id: c.customer_id, kind: 'birthday', ref_key: 'bdaygift:' + reward, link: 'shop',
-            title: '🎂 كل سنة وانت طيب يا ' + c.name, body: 'هدية عيد ميلادك: كود الخصم ' + code + ' (' + offerText + ') صالح لحد ' + end + '. استخدمه في «تصفح منتجاتنا».' });
+            title: '🎂 كل سنة وانت طيب يا ' + c.name, body: 'هدية عيد ميلادك: كود الخصم ' + code + ' (' + offerText + ')' + (end ? ' صالح لحد ' + end : '') + '. استخدمه في «تصفح منتجاتنا».' });
         }
         await tx.unsafe(`insert into mobily.mc_birthdayrewards (reward_id, customer_id, member_no, occasion, start_date, end_date, reward_type, value, max_discount, gift_text, status,
             txn_id, invoice_no, discount_amount, used_at, used_by, wa_sent_by, created_at, promo_code, points_entry)
           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, '', '', 0, ${status === 'used' ? 'now()' : 'null'}, $12, '', now(), $13, $14)`,
-        [reward, c.customer_id, c.member_no, String(yy), start, end, type, value, Number(s.bday_max_discount) || 0, text, status, status === 'used' ? 'النظام' : '', code, entry]);
+        [reward, c.customer_id, c.member_no, String(yy), start, end || '', type, value, Number(s.bday_max_discount) || 0, text, status, status === 'used' ? 'النظام' : '', code, entry]);
         return true;
       });
       if (g) granted++;
@@ -748,7 +860,7 @@ export async function handleShop(body, ctx) {
   try {
     if (fn === 'shop') {
       if (args[0] === 'catalog') return ok(await catalog(sql));
-      if (['order', 'quote', 'saveAddress', 'checkout', 'myOrders', 'cancelOrder', 'summary', 'notifications', 'readNotifications'].indexOf(args[0]) >= 0) return ok(await customerShop(sql, ctx, args[0], args[1] && typeof args[1] === 'object' ? args[1] : {}));
+      if (['order', 'quote', 'saveAddress', 'checkout', 'myOrders', 'cancelOrder', 'summary', 'notifications', 'readNotifications', 'birthday'].indexOf(args[0]) >= 0) return ok(await customerShop(sql, ctx, args[0], args[1] && typeof args[1] === 'object' ? args[1] : {}));
       return bad('طلب غير معروف');
     }
     // ---------- الإدارة ----------
@@ -831,9 +943,10 @@ export async function handleShop(body, ctx) {
       }
       const h = JSON.stringify([{ s: st, at: new Date().toISOString(), by: user.name || '' }]);
       const r = await sql.begin(async (tx) => {
-        const [o] = await tx.unsafe('select id, order_no, status, items, stock_state from mobily.mc_shop_orders where id = $1 and status = $2 for update', [T(p.id), cur.status]);
+        const [o] = await tx.unsafe('select id, order_no, status, items, stock_state, birthday_reward_id, birthday_discount, customer_name from mobily.mc_shop_orders where id = $1 and status = $2 for update', [T(p.id), cur.status]);
         if (!o) return [];
         const ss = await stockTo(tx, o, stockTarget(st), user.name || '');
+        if (o.birthday_reward_id) { await tx.unsafe(`select pg_advisory_xact_lock(${CORE_LOCK})`); await bdaySync(tx, o, st, o.customer_name); }
         await setActor(tx, { id: uid, name: user.name, role: user.role, reason, correction: corr });
         const u = await tx.unsafe(`update mobily.mc_shop_orders set status = $2, stock_state = $5,
             reject_reason = case when $2 in ('rejected','cancelled') then $3 else reject_reason end,
@@ -900,6 +1013,64 @@ export async function handleShop(body, ctx) {
       const rows = await sql.unsafe(`select id, product_id, product_name, color, kind, d_physical, d_reserved, physical_after, reserved_after, order_id, order_no, actor_name, note, created_at
         from mobily.mc_shop_stock_moves ${UUID.test(pid) ? 'where product_id = $1' : ''} order by id desc limit 300`, UUID.test(pid) ? [pid] : []);
       return ok(rows.map((x) => Object.assign({}, x, { id: Number(x.id), order_no: x.order_no ? Number(x.order_no) : null })));
+    }
+
+    // ---------- عرض عيد الميلاد: التحكم والتخصيص ----------
+    if (action === 'birthdayOffer') {
+      const st = await settingsMap(sql, BDAY_KEYS);
+      const today = await cairoToday(sql);
+      const en = isTrue(st.bday_enabled), D = /^\d{4}-\d{2}-\d{2}$/;
+      const period = en && D.test(st.bday_start || '') && today < st.bday_start ? 'scheduled' : en && D.test(st.bday_end || '') && today > st.bday_end ? 'ended' : '';
+      return ok({
+        enabled: en, period, today, name: st.bday_name || BDAY_DEFAULT_NAME, type: st.bday_reward_type || 'percent', value: Number(st.bday_value) || 0, max: Number(st.bday_max_discount) || 0,
+        gift: st.bday_gift_text || '', code_kind: st.bday_code_kind || 'percent', start: st.bday_start || '', end: st.bday_end || '', target: st.bday_target || 'today',
+        target_date: st.bday_target_date || '', target_from: st.bday_target_from || '', target_to: st.bday_target_to || '',
+        product_ids: J(st.bday_product_ids, []), category_ids: J(st.bday_category_ids, []), currency: st.currency || 'ج.م',
+      });
+    }
+    if (action === 'setBirthdayOffer' || action === 'saveBirthdayOffer') {
+      const D = /^\d{4}-\d{2}-\d{2}$/, vals = {};
+      const cur = await settingsMap(sql, BDAY_KEYS);
+      if (action === 'saveBirthdayOffer') {
+        const type = T(p.type);
+        if (['percent', 'fixed', 'gift', 'points', 'code'].indexOf(type) < 0) return bad('اختار نوع العرض');
+        const value = Number(p.value), max = Number(p.max || 0);
+        if (type !== 'gift' && !(value > 0)) return bad('اكتب قيمة العرض');
+        if (type === 'percent' && value > 100) return bad('النسبة مينفعش تزيد عن 100%');
+        if (!(max >= 0)) return bad('أقصى خصم غير صحيح');
+        if (type === 'gift' && !T(p.gift)) return bad('اكتب وصف الهدية');
+        const start = T(p.start), end = T(p.end);
+        if ((start && !D.test(start)) || (end && !D.test(end))) return bad('تاريخ غير صحيح');
+        if (start && end && end < start) return bad('تاريخ الانتهاء لازم يكون بعد تاريخ البداية');
+        const target = T(p.target);
+        if (['today', 'week', 'date', 'range'].indexOf(target) < 0) return bad('اختار العملاء المستحقين');
+        if (target === 'date' && !D.test(T(p.target_date))) return bad('اختار التاريخ');
+        if (target === 'range' && (!D.test(T(p.target_from)) || !D.test(T(p.target_to)))) return bad('اختار الفترة (من تاريخ وإلى تاريخ)');
+        const ids = (a) => (Array.isArray(a) ? a : []).map(T).filter((x) => UUID.test(x)).slice(0, 500);
+        Object.assign(vals, {
+          bday_name: T(p.name).slice(0, 60) || BDAY_DEFAULT_NAME, bday_reward_type: type, bday_value: String(type === 'gift' ? (value > 0 ? value : 0) : value), bday_max_discount: String(type === 'percent' ? max : 0),
+          bday_gift_text: T(p.gift).slice(0, 200), bday_code_kind: T(p.code_kind) === 'fixed' ? 'fixed' : 'percent',
+          bday_start: start, bday_end: end, bday_target: target,
+          bday_target_date: target === 'date' ? T(p.target_date) : '', bday_target_from: target === 'range' ? T(p.target_from) : '', bday_target_to: target === 'range' ? T(p.target_to) : '',
+          bday_product_ids: JSON.stringify(ids(p.product_ids)), bday_category_ids: JSON.stringify(ids(p.category_ids)),
+        });
+      } else {
+        const on = p.enabled === true || p.enabled === 'true';
+        if (on) { // التفعيل محتاج العرض يكون متظبط
+          const type = cur.bday_reward_type || 'percent';
+          if (type !== 'gift' && !(Number(cur.bday_value) > 0)) return bad('اكتب قيمة العرض واحفظ الأول');
+          if (type === 'gift' && !T(cur.bday_gift_text)) return bad('اكتب وصف الهدية واحفظ الأول');
+        }
+        vals.bday_enabled = on ? 'true' : 'false';
+      }
+      await sql.begin(async (tx) => {
+        await tx.unsafe(`select pg_advisory_xact_lock(${CORE_LOCK})`);
+        for (const k of Object.keys(vals)) {
+          await tx.unsafe(`insert into mobily.mc_settings (key, value, type, "group", label, description, updated_at, updated_by) values ($1, $2, 'text', 'birthday', $1, '', now(), $3)
+            on conflict (key) do update set value = excluded.value, updated_at = now(), updated_by = excluded.updated_by`, [k, vals[k], user.name || '']);
+        }
+      });
+      return ok({ done: true });
     }
 
     // ---------- سجل المكافآت (الترحيب + عيد الميلاد) ----------
