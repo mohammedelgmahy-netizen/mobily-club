@@ -4,8 +4,8 @@
 import postgres from 'npm:postgres@3.4.5';
 import * as crypto from 'node:crypto';
 import { Buffer } from 'node:buffer';
-import { handle } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@407cd850a336c7d8027b7c301cf160dd47c5bda6/server/bundle.js';
-import { handleShop } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@180a5e7729f6ed8a4743336f0de9ec185493d694/server/shop.js';
+import { handle } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@82475db839b0544a68962856ec7a6e25704b0e2f/server/bundle.js';
+import { handleShop, periodic, afterCore } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@82475db839b0544a68962856ec7a6e25704b0e2f/server/shop.js';
 import { handleRequests } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@3622f5e990a5fe07c9c0752442b857a1e6e9de8f/server/requests.js';
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2, idle_timeout: 60 });
@@ -43,12 +43,15 @@ async function storeImage(dataUrl: string, bucket: string, prefix: string, failM
 }
 const uploadImage = (dataUrl: string) => storeImage(dataUrl, 'mc-offers', 'offer', 'تعذر رفع الصورة. ضع رابط صورة يدوياً.');
 
+const core = (b: unknown) => handle(b, db, { crypto, Buffer, uploadImage });
+
 // التحقق من جلسة الإدارة بنفس منطق النظام (نفس الصلاحيات وانتهاء الجلسة)
 async function verifyAdmin(token: string) {
   const out: any = await handle({ fn: 'adminApi', args: [token, 'me', {}, ''] }, db, { crypto, Buffer, uploadImage });
   const res = out && out.result;
   if (!res || !res.ok) return { ok: false, res: res || { ok: false, error: 'حدث خطأ في الخادم، حاول مرة أخرى' } };
-  return { ok: true, permissions: res.data.user.permissions, name: res.data.user.display_name || res.data.user.username || '' };
+  const u = res.data.user;
+  return { ok: true, permissions: u.permissions, name: u.display_name || u.username || '', user_id: u.user_id || '', role: u.role || '' };
 }
 
 Deno.serve(async (req: Request) => {
@@ -57,17 +60,19 @@ Deno.serve(async (req: Request) => {
   let body: unknown;
   try { body = await req.json(); } catch { return json({ error: 'bad request' }, 400); }
   // نبضة كل دقيقة من قاعدة البيانات عشان السيرفر يفضل صاحي واتصاله بقاعدة البيانات مفتوح
-  if ((body as any)?.fn === 'ping') { try { await sql`select 1`; } catch { /* ignore */ } return json({ ok: true }); }
+  // ومعاها المهام الدورية (تنبيه أعياد الميلاد، عروض عيد الميلاد، نقاط الترحيب) مرة كل 10 دقايق بالكتير
+  if ((body as any)?.fn === 'ping') { try { await sql`select 1`; await periodic(sql); } catch (e) { console.error(e); } return json({ ok: true }); }
   try {
     const fn = (body as any)?.fn;
     if (fn === 'shop' || fn === 'shopAdmin') {
       return json(await handleShop(body, {
-        sql, verifyAdmin,
+        sql, verifyAdmin, core,
         upload: (d: string) => storeImage(d, 'mc-products', 'product', 'تعذر رفع الصورة، حاول مرة أخرى'),
       }));
     }
     if (fn === 'requests') return json(await handleRequests(body, { sql, verifyAdmin }));
-    const out = await handle(body, db, { crypto, Buffer, uploadImage });
+    const out = await core(body);
+    await afterCore(body, out, sql); // عميل جديد ← نقاط الترحيب فوراً
     return json(out);
   } catch (e) {
     console.error(e);
