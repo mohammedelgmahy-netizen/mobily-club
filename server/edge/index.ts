@@ -6,6 +6,7 @@ import * as crypto from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import { handle } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@407cd850a336c7d8027b7c301cf160dd47c5bda6/server/bundle.js';
 import { handleShop } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@180a5e7729f6ed8a4743336f0de9ec185493d694/server/shop.js';
+import { handleRequests } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@3622f5e990a5fe07c9c0752442b857a1e6e9de8f/server/requests.js';
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2, idle_timeout: 60 });
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -65,6 +66,7 @@ Deno.serve(async (req: Request) => {
         upload: (d: string) => storeImage(d, 'mc-products', 'product', 'تعذر رفع الصورة، حاول مرة أخرى'),
       }));
     }
+    if (fn === 'requests') return json(await handleRequests(body, { sql, verifyAdmin }));
     const out = await handle(body, db, { crypto, Buffer, uploadImage });
     return json(out);
   } catch (e) {
