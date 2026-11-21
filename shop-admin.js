@@ -82,7 +82,27 @@
     '.pm-pick label{display:flex;align-items:center;gap:8px;margin:0;padding:6px 0;font-weight:600;font-size:13.5px;cursor:pointer;border-bottom:1px dashed #EEF2FA}',
     '.pm-pick label:last-child{border-bottom:0}.pm-pick input{width:18px;height:18px;margin:0;flex:0 0 auto}',
     '.pm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 10px}',
-    '.pm-stats{display:flex;gap:8px;margin-bottom:6px}.pm-stats div{flex:1;background:#F5F3FF;border-radius:12px;padding:8px 10px}.pm-stats small{display:block;color:#5B6683;font-size:11.5px;font-weight:700}.pm-stats b{font-size:16px}'
+    '.pm-stats{display:flex;gap:8px;margin-bottom:6px}.pm-stats div{flex:1;background:#F5F3FF;border-radius:12px;padding:8px 10px}.pm-stats small{display:block;color:#5B6683;font-size:11.5px;font-weight:700}.pm-stats b{font-size:16px}',
+    '.sp-colbox{border:1px solid var(--line);border-radius:12px;padding:8px;margin-bottom:8px;background:#FAFBFD}',
+    '.sp-img.sm{width:64px}.sp-add.sm{width:64px;height:64px;font-size:11px}',
+    '.so-item.pend{border-color:#F59E0B;background:#FFFBEB}',
+    '.so-sts button.nx{grid-column:1/-1;background:#0891B2;border-color:#0891B2;color:#fff}',
+    '.so-flow{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.so-flow span{font-size:11.5px;font-weight:800;padding:4px 8px;border-radius:999px;background:#F1F5F9;color:#94A3B8}',
+    '.so-flow span.dn{background:#DCFCE7;color:#166534}.so-flow span.cu{background:#0891B2;color:#fff}',
+    '.so-corr{margin-top:12px;border:1px dashed #CBD5E1;border-radius:12px;padding:8px 10px}.so-corr summary{cursor:pointer;font-weight:800;font-size:13px;color:#475569}',
+    '.so-inv{margin-top:12px;border-radius:12px;padding:10px 12px;font-size:13.5px}.so-inv.ok{background:#DCFCE7;color:#14532D}.so-inv.wait{background:#FEF2F2;color:#7F1D1D}',
+    '.so-dash{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}',
+    '.so-dash button{border:1px solid var(--line);background:#F8FAFC;border-radius:12px;padding:8px 10px;text-align:right;font:inherit;cursor:pointer}',
+    '.so-dash button small{display:block;color:#5B6683;font-size:11.5px;font-weight:700}.so-dash button b{font-size:18px}.so-dash button.hot{background:#FFFBEB;border-color:#F59E0B}.so-dash button.bad{background:#FEF2F2;border-color:#FCA5A5}',
+    '.sk-st{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px}.sk-st.ok{background:#DCFCE7;color:#166534}.sk-st.low{background:#FEF3C7;color:#92400E}.sk-st.out{background:#FEE2E2;color:#B91C1C}',
+    '.sk-row{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff}.sk-row .nm{font-weight:800;font-size:14px}.sk-row .ns{display:flex;gap:6px;margin-top:6px;font-size:12.5px;flex-wrap:wrap}',
+    '.sk-row .ns span{background:#F1F5F9;border-radius:8px;padding:3px 8px}.sk-row .bt{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.sk-row .bt .btn{flex:1 1 70px;padding:6px 8px;font-size:12.5px}',
+    '.nb-btn{position:relative;background:transparent;border:0;font-size:20px;cursor:pointer;padding:2px 6px;margin-inline-end:6px;vertical-align:middle}',
+    '.nb-n{position:absolute;top:-4px;left:-4px;background:#DC2626;color:#fff;font-size:10.5px;font-weight:800;min-width:18px;height:18px;border-radius:9px;display:grid;place-items:center;padding:0 4px;font-family:Inter,sans-serif}',
+    '.nav-n{background:#DC2626;color:#fff;font-size:10.5px;font-weight:800;border-radius:9px;padding:1px 6px;margin-inline-start:4px;font-style:normal}',
+    '.nf-it{display:block;width:100%;text-align:right;border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff;font:inherit;cursor:pointer;margin-bottom:8px}',
+    '.nf-it.un{background:#EFF6FF;border-color:#93C5FD}.nf-it b{display:block;font-size:14px}.nf-it span{display:block;font-size:12.5px;color:#475569;margin-top:2px}.nf-it small{color:#94A3B8;font-size:11.5px}',
+    '.rw-t{width:100%;border-collapse:collapse;font-size:13px}.rw-t td,.rw-t th{border-bottom:1px solid var(--line);padding:7px 4px;text-align:right}.rw-t th{color:#5B6683;font-size:12px}'
   ].join('\n');
   var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
 
@@ -111,9 +131,10 @@
     v.innerHTML = '<div class="card"><div class="toolbar"><h2 style="margin:0;flex:1">🛍️ المنتجات — تصفح منتجاتنا</h2></div>' +
       '<p class="muted small" style="margin:0 0 10px">أي تعديل هنا بيظهر للعملاء في «تصفح منتجاتنا» على طول.</p>' +
       '<div class="sp-tabs"><button type="button" data-t="products" class="' + (TAB === 'products' ? 'on' : '') + '">المنتجات (' + SD.products.length + ')</button>' +
+      '<button type="button" data-t="stock" class="' + (TAB === 'stock' ? 'on' : '') + '">📦 المخزون' + (lowCount() ? ' <span class="badge red">' + lowCount() + '</span>' : '') + '</button>' +
       '<button type="button" data-t="cats" class="' + (TAB === 'cats' ? 'on' : '') + '">الأقسام (' + SD.categories.length + ')</button></div><div id="spBody"></div></div>';
     $all('.sp-tabs button', v).forEach(function (b) { b.onclick = function () { TAB = b.dataset.t; draw(v); }; });
-    if (TAB === 'cats') drawCats($('#spBody')); else drawProducts($('#spBody'));
+    if (TAB === 'cats') drawCats($('#spBody')); else if (TAB === 'stock') drawStock($('#spBody')); else drawProducts($('#spBody'));
   }
 
   /* ---------------- المنتجات ---------------- */
@@ -136,6 +157,7 @@
       return '<div class="sp-item' + (p.hidden ? ' off' : '') + '" data-open="' + esc(p.id) + '"><div class="sp-th">' + (t ? img(t) : '📦') + '</div>' +
         '<div class="sp-info"><b>' + esc(p.name) + '</b><div class="m">' + (p.code ? '<span class="sp-code">' + esc(p.code) + '</span>' : '') + '<span>' + esc(catName(p.category_id)) + '</span><b style="display:inline;color:#0891B2">' + money(p.price) + '</b>' +
         (off ? '<s>' + money(p.old_price) + '</s><span class="badge red">-' + off + '%</span>' : '') + (p.hidden ? '<span class="badge gray">مخفي</span>' : '') + '</div>' +
+        '<div class="m">' + invBadge(p.inv) + (p.inv ? ' <span>المتاح ' + p.inv.available + ' · الفعلي ' + p.inv.physical + ' · المحجوز ' + p.inv.reserved + '</span>' : '') + '</div>' +
         '<div class="m" style="margin-top:6px"><label class="sp-tg"><input type="checkbox" data-av="' + esc(p.id) + '"' + (p.available ? ' checked' : '') + '>متوفر</label>' +
         '<label class="sp-tg"><input type="checkbox" data-vis="' + esc(p.id) + '"' + (p.hidden ? '' : ' checked') + '>ظاهر للعملاء</label></div></div>' +
         '<div class="sp-acts"><button class="btn sm sp-edit" type="button" data-ed="' + esc(p.id) + '">✏️ تعديل</button></div></div>';
@@ -156,6 +178,63 @@
   }
 
   /* تصغير الصورة في الموبايل قبل الرفع: صورة كبيرة واضحة + صورة صغيرة سريعة للقوائم */
+  var SK_AR = { ok: 'متوفر', low: 'مخزون منخفض', out: 'غير متوفر' };
+  function invBadge(inv) { return inv ? '<span class="sk-st ' + inv.state + '">' + SK_AR[inv.state] + '</span>' : ''; }
+  function lowCount() { return SD.products.filter(function (p) { return p.inv && p.inv.state !== 'ok'; }).length; }
+  var SKF = { f: '', q: '' };
+  function drawStock(el) {
+    el.innerHTML = '<div class="toolbar" style="flex-wrap:wrap"><input id="skQ" placeholder="🔍 اسم المنتج أو الكود" value="' + esc(SKF.q) + '" style="flex:1;min-width:140px">' +
+      '<button class="btn ghost sm" type="button" id="skLog">📜 سجل الحركة</button></div>' +
+      '<div class="so-st" id="skF">' + [['', 'الكل'], ['low', 'مخزون منخفض'], ['out', 'غير متوفر']].map(function (x) { return '<button type="button" data-f="' + x[0] + '"' + (SKF.f === x[0] ? ' class="on"' : '') + '>' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<p class="small muted" style="margin:6px 0 10px">المتاح = الفعلي − المحجوز. المحجوز = كميات في طلبات اتأكدت ولسه ما اكتملتش. السلة مش بتحجز.</p><div id="skList" class="sp-list"></div>';
+    $('#skQ').oninput = function () { SKF.q = this.value; listStock(); };
+    $all('#skF button', el).forEach(function (b) { b.onclick = function () { SKF.f = b.dataset.f; drawStock(el); }; });
+    $('#skLog').onclick = function () { stockLog(null); };
+    listStock();
+  }
+  function listStock() {
+    var q = SKF.q.trim().toLowerCase(), rows = [];
+    SD.products.forEach(function (p) {
+      if (q && p.name.toLowerCase().indexOf(q) < 0 && String(p.code || '').toLowerCase().indexOf(q) < 0) return;
+      ((p.inv && p.inv.rows) || []).forEach(function (r) { if (!SKF.f || r.state === SKF.f) rows.push([p, r]); });
+    });
+    var box = $('#skList');
+    if (!rows.length) { box.innerHTML = '<div class="empty">' + (SD.products.length ? 'مفيش منتجات هنا' : 'لسه مفيش منتجات') + '</div>'; return; }
+    box.innerHTML = rows.map(function (x, i) {
+      var p = x[0], r = x[1];
+      return '<div class="sk-row"><div class="top" style="display:flex;justify-content:space-between;gap:8px"><span class="nm">' + esc(p.name) + (r.color ? ' · ' + esc(r.color) : '') + '</span><span class="sk-st ' + r.state + '">' + SK_AR[r.state] + '</span></div>' +
+        '<div class="ns"><span>المتاح <b>' + r.available + '</b></span><span>الفعلي <b>' + r.physical + '</b></span><span>المحجوز <b>' + r.reserved + '</b></span><span>حد التنبيه ' + p.inv.low_stock + '</span>' + (p.code ? '<span class="sp-code">' + esc(p.code) + '</span>' : '') + '</div>' +
+        '<div class="bt"><button type="button" class="btn sm" data-sk="' + i + ':add">+ إضافة</button><button type="button" class="btn ghost sm" data-sk="' + i + ':remove">− خصم</button><button type="button" class="btn ghost sm" data-sk="' + i + ':set">= ضبط الرصيد</button><button type="button" class="btn ghost sm" data-sk="' + i + ':log">📜 السجل</button></div></div>';
+    }).join('');
+    $all('[data-sk]', box).forEach(function (b) {
+      b.onclick = function () { var a = b.dataset.sk.split(':'), x = rows[+a[0]]; if (a[1] === 'log') stockLog(x[0]); else stockForm(x[0], x[1], a[1]); };
+    });
+  }
+  function stockForm(p, r, kind) {
+    var T = { add: 'إضافة كمية للمخزون', remove: 'خصم كمية من المخزون', set: 'ضبط الرصيد الفعلي' }[kind];
+    modal(T, '<p style="margin-top:0"><b>' + esc(p.name) + (r.color ? ' · ' + esc(r.color) : '') + '</b><br><span class="small muted">الفعلي ' + r.physical + ' · المحجوز ' + r.reserved + ' · المتاح ' + r.available + '</span></p>' +
+      '<label>' + (kind === 'set' ? 'الرصيد الفعلي الجديد' : 'الكمية') + '</label><input id="skN" inputmode="numeric" autofocus>' +
+      '<label>ملاحظة (اختياري)</label><input id="skNote" maxlength="200" placeholder="' + (kind === 'add' ? 'مثلاً: بضاعة جديدة' : kind === 'remove' ? 'مثلاً: تالف' : 'مثلاً: جرد') + '">' +
+      '<div id="skErr"></div><div style="height:10px"></div><button type="button" class="btn" id="skOk">حفظ</button>');
+    $('#skOk').onclick = function () {
+      var btn = this, n = numVal($('#skN'));
+      if (!(n >= 0) || Math.floor(n) !== n || (kind !== 'set' && n <= 0) || $('#skN').value.trim() === '') { $('#skErr').innerHTML = '<div class="err">اكتب رقم صحيح</div>'; return; }
+      busy(btn, true);
+      sh('stockMove', { product_id: p.id, color: r.color, kind: kind, qty: n, note: $('#skNote').value }).then(function (x) { closeModal(); toast('تم ✓ المتاح دلوقتي ' + x.available); return reload(); })
+        .catch(function (e) { $('#skErr').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; busy(btn, false); });
+    };
+  }
+  var MV_AR = { add: 'إضافة', remove: 'خصم', set: 'ضبط رصيد', reserve: 'حجز لطلب', release: 'فك حجز', sell: 'بيع (طلب مكتمل)' };
+  function stockLog(p) {
+    var body = modal('📜 سجل حركة المخزون' + (p ? ' · ' + p.name : ''), '<div class="empty"><span class="spinner"></span></div>', true);
+    sh('stockMoves', p ? { product_id: p.id } : {}).then(function (rows) {
+      body.innerHTML = rows.length ? '<div style="overflow-x:auto"><table class="rw-t"><tr><th>الوقت</th>' + (p ? '' : '<th>المنتج</th>') + '<th>الحركة</th><th>التغيير</th><th>بعدها (فعلي/محجوز)</th><th>بواسطة</th></tr>' + rows.map(function (m) {
+        var ch = []; if (m.d_physical) ch.push('فعلي ' + (m.d_physical > 0 ? '+' : '') + m.d_physical); if (m.d_reserved) ch.push('محجوز ' + (m.d_reserved > 0 ? '+' : '') + m.d_reserved);
+        return '<tr><td>' + esc(odt(m.created_at)) + '</td>' + (p ? '' : '<td>' + esc(m.product_name) + '</td>') + '<td>' + esc(MV_AR[m.kind] || m.kind) + (m.color ? ' · ' + esc(m.color) : '') + (m.order_no ? ' · طلب #' + m.order_no : '') + (m.note ? '<br><small>' + esc(m.note) + '</small>' : '') + '</td>' +
+          '<td style="direction:ltr;text-align:right">' + esc(ch.join(' ، ')) + '</td><td>' + m.physical_after + ' / ' + m.reserved_after + '</td><td>' + esc(m.actor_name || 'النظام') + '</td></tr>';
+      }).join('') + '</table></div>' : '<div class="empty">لسه مفيش حركة</div>';
+    }).catch(function (e) { body.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  }
   function resize(file, max, q) {
     return new Promise(function (res, rej) {
       var url = URL.createObjectURL(file), im = new Image();
@@ -180,7 +259,7 @@
   function productForm(p) {
     var isNew = !p;
     p = p || { name: '', code: '', category_id: F.cat || '', description: '', price: '', old_price: '', available: true, hidden: false, images: [], specs: [], colors: [], variants: [] };
-    var IM = (p.images || []).slice(), SP = (p.specs || []).map(function (s) { return [s[0], s[1]]; }), CO = (p.colors || []).map(function (c) { return { n: c.n, c: c.c }; });
+    var IM = (p.images || []).slice(), SP = (p.specs || []).map(function (s) { return [s[0], s[1]]; }), CO = (p.colors || []).map(function (c) { return { n: c.n, c: c.c, im: (c.im || []).slice() }; });
     var body = modal(isNew ? 'منتج جديد' : 'تعديل المنتج',
       '<label>اسم المنتج *</label><input id="pfName" value="' + esc(p.name) + '" maxlength="150">' +
       '<label>كود المنتج <span class="muted small">(اختياري، للبحث وللطلبات)</span></label><input id="pfCode" value="' + esc(p.code || '') + '" maxlength="40" style="direction:ltr">' +
@@ -193,7 +272,9 @@
       '<label class="check" style="margin-top:-6px"><input type="checkbox" id="pfVis"' + (p.hidden ? '' : ' checked') + '><span>ظاهر للعملاء في «تصفح منتجاتنا»</span></label>' +
       '<label>الوصف</label><textarea id="pfDesc" rows="5" placeholder="وصف كامل للمنتج">' + esc(p.description) + '</textarea>' +
       '<label>المواصفات</label><div class="sp-rows" id="pfSpecs"></div><button class="btn ghost sm" type="button" id="pfSpecAdd">+ إضافة مواصفة</button>' +
-      '<label>الألوان المتاحة</label><div class="sp-rows" id="pfColors"></div><button class="btn ghost sm" type="button" id="pfColAdd">+ إضافة لون</button>' +
+      '<label>الألوان المتاحة <span class="muted small">(لكل لون تقدر تضيف صوره الخاصة؛ لما العميل يختار اللون الصور بتتغير)</span></label><div class="sp-rows" id="pfColors"></div><button class="btn ghost sm" type="button" id="pfColAdd">+ إضافة لون</button>' +
+      '<label>حد التنبيه لما المخزون يقل <span class="muted small">(لما المتاح يوصل للرقم ده أو أقل بيظهر «مخزون منخفض»)</span></label><input id="pfLow" inputmode="numeric" value="' + esc(p.low_stock === undefined || p.low_stock === null ? 3 : p.low_stock) + '" style="max-width:140px">' +
+      (isNew ? '<p class="small muted" style="margin:6px 0 0">بعد الحفظ، دخّل الرصيد من تبويب «📦 المخزون» (المنتج من غير رصيد بيظهر للعميل «غير متوفر»).</p>' : '') +
       '<label>اختيارات تانية <span class="muted small">(مثلاً المساحة: 128GB، 256GB — افصل بينهم بفاصلة)</span></label><input id="pfVar" value="' + esc((p.variants || []).join('، ')) + '">' +
       '<div id="pfErr"></div><div class="row" style="margin-top:14px"><button class="btn" id="pfSave" type="button">حفظ المنتج</button>' +
       (isNew ? '' : '<button class="btn ghost" id="pfDel" type="button" style="flex:0 0 auto;color:#DC2626">مسح</button>') + '</div>', true);
@@ -234,7 +315,20 @@
       $all('[data-sx]', body).forEach(function (x) { x.onclick = function () { SP.splice(+x.dataset.sx, 1); drawSpecs(); }; });
     }
     function drawColors() {
-      $('#pfColors').innerHTML = CO.map(function (c, i) { return '<div class="r"><input type="color" value="' + esc(c.c || '#000000') + '" data-cc="' + i + '"><input placeholder="اسم اللون، مثلاً: أسود" value="' + esc(c.n) + '" data-cn="' + i + '"><button type="button" class="x" data-cx="' + i + '">×</button></div>'; }).join('');
+      $('#pfColors').innerHTML = CO.map(function (c, i) {
+        return '<div class="sp-colbox"><div class="r"><input type="color" value="' + esc(c.c || '#000000') + '" data-cc="' + i + '"><input placeholder="اسم اللون، مثلاً: أسود" value="' + esc(c.n) + '" data-cn="' + i + '"><button type="button" class="x" data-cx="' + i + '">×</button></div>' +
+          '<div class="sp-imgs" style="margin-top:0">' + (c.im || []).map(function (im, k) { return '<div class="sp-img sm">' + img(im.t || im.u) + '<div class="ctl"><button type="button" data-cim="' + i + ':' + k + '" style="color:#DC2626">🗑</button></div></div>'; }).join('') +
+          '<label class="sp-add sm"><span>📷<br>صور اللون</span><input type="file" accept="image/*" multiple data-cup="' + i + '"></label></div></div>';
+      }).join('');
+      $all('[data-cim]', body).forEach(function (x) { x.onclick = function () { var a = x.dataset.cim.split(':'); CO[+a[0]].im.splice(+a[1], 1); drawColors(); }; });
+      $all('[data-cup]', body).forEach(function (inp) {
+        inp.onchange = function () {
+          var i = +inp.dataset.cup, files = Array.prototype.slice.call(inp.files || []); if (!files.length) return;
+          $('#pfSave').disabled = true; inp.parentNode.innerHTML = '<span><span class="spinner"></span><br>جاري الرفع…</span>';
+          files.reduce(function (pr, file) { return pr.then(function () { return uploadFile(file).then(function (im) { CO[i].im.push(im); }); }); }, Promise.resolve())
+            .catch(function (e) { toast(e.message, true); }).then(function () { $('#pfSave').disabled = false; drawColors(); });
+        };
+      });
       $all('[data-cc]', body).forEach(function (x) { x.oninput = function () { CO[+x.dataset.cc].c = x.value; }; });
       $all('[data-cn]', body).forEach(function (x) { x.oninput = function () { CO[+x.dataset.cn].n = x.value; }; });
       $all('[data-cx]', body).forEach(function (x) { x.onclick = function () { CO.splice(+x.dataset.cx, 1); drawColors(); }; });
@@ -254,14 +348,15 @@
     $('#pfPct').value = pct(Number(p.price), Number(p.old_price)) || '';
     prev(); drawImgs(); drawSpecs(); drawColors();
     $('#pfSpecAdd').onclick = function () { SP.push(['', '']); drawSpecs(); var a = $all('[data-sk]', body); a[a.length - 1].focus(); };
-    $('#pfColAdd').onclick = function () { CO.push({ n: '', c: '#000000' }); drawColors(); var a = $all('[data-cn]', body); a[a.length - 1].focus(); };
+    $('#pfColAdd').onclick = function () { CO.push({ n: '', c: '#000000', im: [] }); drawColors(); var a = $all('[data-cn]', body); a[a.length - 1].focus(); };
     $('#pfSave').onclick = function () {
       var btn = this; $('#pfErr').innerHTML = '';
       var payload = {
         id: p.id || '', name: $('#pfName').value, code: $('#pfCode').value, category_id: $('#pfCat').value, description: $('#pfDesc').value,
         price: numVal($('#pfPrice')), old_price: numVal($('#pfOld')), available: $('#pfAv').checked, hidden: !$('#pfVis').checked,
         images: IM, specs: SP.filter(function (s) { return String(s[0]).trim() || String(s[1]).trim(); }), colors: CO.filter(function (c) { return String(c.n).trim(); }),
-        variants: $('#pfVar').value.split(/[,،\n]/).map(function (s) { return s.trim(); }).filter(Boolean)
+        variants: $('#pfVar').value.split(/[,،\n]/).map(function (s) { return s.trim(); }).filter(Boolean),
+        low_stock: $('#pfLow').value.trim() === '' ? 3 : numVal($('#pfLow'))
       };
       if (!String(payload.name).trim()) { $('#pfErr').innerHTML = '<div class="err">اكتب اسم المنتج</div>'; return; }
       if (!$('#pfPrice').value.trim() || isNaN(payload.price)) { $('#pfErr').innerHTML = '<div class="err">اكتب سعر البيع</div>'; return; }
@@ -350,11 +445,39 @@
   function dayK(iso) { var x = new Date(iso); var z = new Date(x.getTime() - x.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); }
   function waNum(ph) { var d = String(ph || '').replace(/\D/g, ''); if (/^01\d{9}$/.test(d)) d = '2' + d; return d; }
 
+  var OROLE = '', FINAL = ['completed', 'rejected', 'cancelled'], OPEN_ORDER = '';
+  function flowOf(o) { return o.flow && o.flow.length ? o.flow : (o.delivery === 'delivery' ? ['pending', 'approved', 'preparing', 'ready', 'shipped', 'completed'] : ['pending', 'approved', 'preparing', 'ready', 'completed']); }
+  function flowBar(o) {
+    var f = flowOf(o), at = f.indexOf(o.status);
+    if (o.status === 'rejected' || o.status === 'cancelled') return '<div class="so-flow"><span class="cu">' + esc(ST_AR[o.status]) + '</span></div>';
+    return '<div class="so-flow">' + f.map(function (s2, i) { return '<span class="' + (i < at ? 'dn' : i === at ? 'cu' : '') + '">' + esc(ST_AR[s2]) + '</span>'; }).join('') + '</div>';
+  }
+  function invoiceBlock(o) {
+    if (o.status !== 'completed' || !o.invoice_status) return '';
+    if (o.invoice_status === 'done') return '<div class="so-inv ok">🧾 فاتورة البيع: <b>' + esc(o.invoice_no) + '</b> · النقاط اللي اتضافت للعميل: <b>' + (o.invoice_points || 0) + '</b>' + (o.invoice_balance !== null && o.invoice_balance !== undefined ? ' · رصيده بعدها: ' + o.invoice_balance : '') + '</div>';
+    if (o.invoice_status === 'void') return '<div class="so-inv wait">🧾 الفاتورة اتلغت بتصحيح إداري.</div>';
+    return '<div class="so-inv wait">⏳ <b>في انتظار الفاتورة</b>: الطلب اكتمل لكن فاتورة البيع لسه ما اتسجلتش، والنقاط مش هتتضاف غير بعد ما الفاتورة تتسجل.' +
+      (o.invoice_error ? '<br><small>السبب: ' + esc(o.invoice_error) + '</small>' : '') + '<div style="height:8px"></div><button type="button" class="btn sm" id="soInvRetry">🔁 إعادة المحاولة</button></div>';
+  }
+  var DASH_ITEMS = [['new_today', 'طلبات جديدة النهارده', ''], ['pending', 'قيد المراجعة', 'pending'], ['approved', 'تم القبول', 'approved'], ['preparing', 'جاري التجهيز', 'preparing'],
+    ['ready_pickup', 'جاهز للاستلام', 'ready'], ['awaiting_delivery', 'في انتظار التوصيل', 'shipped'], ['completed', 'مكتملة', 'completed'], ['awaiting_invoice', 'في انتظار الفاتورة', 'completed']];
+  function drawDash(el, fromHome) {
+    if (!el) return;
+    sh('orderSummary').then(function (s) {
+      el.innerHTML = '<div class="toolbar" style="margin-bottom:8px"><h3 style="margin:0;flex:1">📦 ملخص طلبات المنتجات</h3></div><div class="so-dash">' + DASH_ITEMS.map(function (d) {
+        var n = s[d[0]] || 0;
+        return '<button type="button" data-ds="' + d[2] + '" class="' + (n && (d[0] === 'pending') ? 'hot' : n && d[0] === 'awaiting_invoice' ? 'bad' : '') + '"><small>' + d[1] + '</small><b>' + n + '</b></button>';
+      }).join('') + '</div>';
+      $all('[data-ds]', el).forEach(function (b) {
+        b.onclick = function () { OF.st = b.dataset.ds; if (fromHome || CUR !== 'shoporders') go('shoporders'); else drawOrders($('#viewIn')); };
+      });
+    }).catch(function (e) { el.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  }
   window.viewShopOrders = function (v) {
-    sh('orders').then(function (r) { ORD = r; drawOrders(v); }).catch(function (e) { v.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+    sh('orders').then(function (r) { ORD = r.orders || r; OROLE = (r.me && r.me.role) || ''; drawOrders(v); if (OPEN_ORDER) { var id = OPEN_ORDER; OPEN_ORDER = ''; orderDetails(id); } }).catch(function (e) { v.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
   };
   function reloadOrders(openId) {
-    return sh('orders').then(function (r) { ORD = r; var v = $('#viewIn'); if (v && CUR === 'shoporders') drawOrders(v); if (openId) orderDetails(openId); });
+    return sh('orders').then(function (r) { ORD = r.orders || r; OROLE = (r.me && r.me.role) || ''; var v = $('#viewIn'); if (v && CUR === 'shoporders') drawOrders(v); if (openId) orderDetails(openId); });
   }
   function drawOrders(v) {
     var cnt = {}; ORD.forEach(function (o) { cnt[o.status] = (cnt[o.status] || 0) + 1; });
@@ -364,6 +487,8 @@
       '<div class="so-filters"><input id="soQ" placeholder="🔍 رقم الطلب أو اسم العميل أو الموبايل" value="' + esc(OF.q) + '" style="flex-basis:100%">' +
       '<div><label style="margin:0 0 4px">من تاريخ</label><input type="date" id="soFrom" value="' + esc(OF.from) + '"></div><div><label style="margin:0 0 4px">إلى تاريخ</label><input type="date" id="soTo" value="' + esc(OF.to) + '"></div></div>' +
       '<div class="so-sum" id="soSum"></div><div id="soList" class="sp-list"></div></div>';
+    v.insertAdjacentHTML('afterbegin', '<div class="card" id="soDash"><div class="empty" style="padding:8px"><span class="spinner"></span></div></div>');
+    drawDash($('#soDash'));
     $('#soSet').onclick = deliverySettings;
     $('#soRef').onclick = function () { loading($('#soList')); reloadOrders(); };
     $all('#soSt button', v).forEach(function (b) { b.onclick = function () { OF.st = b.dataset.st; drawOrders(v); }; });
@@ -388,8 +513,8 @@
       (OF.st === 'rejected' || OF.st === 'cancelled' ? '' : '<div style="flex-basis:100%;background:transparent;border:0;padding:0"><small>الإجماليات من غير الطلبات الملغية والمرفوضة</small></div>');
     if (!rows.length) { box.innerHTML = '<div class="empty">' + (ORD.length ? 'مفيش طلبات بالبحث ده' : 'لسه مفيش طلبات من العملاء.') + '</div>'; return; }
     box.innerHTML = rows.map(function (o) {
-      return '<div class="so-item" data-oid="' + esc(o.id) + '"><div class="th">' + (o.image ? img(o.image) : '📦') + '</div><div class="bd">' +
-        '<div class="top"><b>#' + o.order_no + '</b>' + stB(o.status) + '</div>' +
+      return '<div class="so-item' + (o.status === 'pending' ? ' pend' : '') + '" data-oid="' + esc(o.id) + '"><div class="th">' + (o.image ? img(o.image) : '📦') + '</div><div class="bd">' +
+        '<div class="top"><b>#' + o.order_no + '</b><span>' + (o.status === 'completed' && (o.invoice_status === 'pending' || o.invoice_status === 'working') ? '<span class="badge red" style="margin-inline-end:4px">في انتظار الفاتورة</span>' : '') + stB(o.status) + '</span></div>' +
         '<div class="ln"><b>' + esc(o.product_name) + '</b>' + (o.items.length === 1 && o.product_code ? ' <span class="sp-code">' + esc(o.product_code) + '</span>' : '') + '</div>' +
         '<div class="ln">' + esc(o.customer_name) + ' · <span style="direction:ltr;unicode-bidi:isolate">' + esc(o.customer_phone) + '</span></div>' +
         '<div class="ln mu">' + (o.items.length > 1 ? o.items.length + ' منتجات · ' : '') + 'الكمية ' + o.qty + (o.items.length === 1 && o.color ? ' · ' + esc(o.color) : '') + (o.items.length === 1 && o.variant ? ' · ' + esc(o.variant) : '') +
@@ -402,6 +527,7 @@
   }
   function orderDetails(id) {
     var o = ORD.filter(function (x) { return x.id === id; })[0]; if (!o) return;
+    readOrderNotifs(o.id);
     var r = function (k, val) { return '<div class="r"><span>' + k + '</span><span>' + val + '</span></div>'; };
     var shop = (PS && (PS.shop_name || PS.program_name)) || 'موبايلي';
     var msg = 'أهلاً ' + o.customer_name + ' 👋\nبخصوص طلبك رقم #' + o.order_no + ' (' + o.product_name + ') من ' + shop + ':\nحالة الطلب: ' + (ST_AR[o.status] || o.status);
@@ -426,10 +552,32 @@
       '<a class="btn ghost" href="tel:' + esc(o.customer_phone) + '">📞 اتصال</a></div>' +
       '<h3 style="margin:16px 0 4px">ملاحظات داخلية <small style="color:#5B6683;font-weight:600">(مش بتظهر للعميل)</small></h3><textarea id="soNotes" rows="2" maxlength="1000">' + esc(o.admin_notes || '') + '</textarea>' +
       '<div style="height:6px"></div><button type="button" class="btn ghost sm" id="soNotesOk">حفظ الملاحظات</button>' +
-      '<h3 style="margin:16px 0 4px">تغيير حالة الطلب</h3><div class="so-sts">' + ST_ORDER.map(function (s) { return '<button type="button" data-s="' + s + '"' + (o.status === s ? ' class="on" disabled' : '') + '>' + ST_AR[s] + '</button>'; }).join('') + '</div>' +
+      invoiceBlock(o) +
+      '<h3 style="margin:16px 0 4px">حالة الطلب</h3>' + flowBar(o) +
+      (FINAL.indexOf(o.status) >= 0 ? '<p class="small muted" style="margin:8px 0 0">الطلب ده انتهى ومينفعش تتغير حالته.</p>' : '<div class="so-sts">' +
+        (o.next ? '<button type="button" data-s="' + o.next + '" class="nx">التالي: ' + ST_AR[o.next] + ' ←</button>' : '') +
+        (o.status === 'pending' ? '<button type="button" data-s="rejected" style="color:#DC2626">رفض الطلب</button>' : '') +
+        '<button type="button" data-s="cancelled" style="color:#475569">إلغاء الطلب</button></div>') +
+      (OROLE === 'owner' ? '<details class="so-corr"><summary>🛠️ تصحيح إداري (للمالك بس)</summary><p class="small muted" style="margin:6px 0">للحالات الاستثنائية بس. السبب بيتسجل في سجل الطلب.' + (o.status === 'completed' && o.invoice_status === 'done' ? ' تصحيح طلب مكتمل بيلغي فاتورته ونقاطه.' : '') + '</p>' +
+        '<select id="soCorrSt">' + ST_ORDER.filter(function (s2) { return s2 !== o.status && (s2 !== 'shipped' || o.delivery === 'delivery'); }).map(function (s2) { return '<option value="' + s2 + '">' + ST_AR[s2] + '</option>'; }).join('') + '</select>' +
+        '<input id="soCorrR" maxlength="300" placeholder="سبب التصحيح *" style="margin-top:6px"><div style="height:6px"></div><button type="button" class="btn ghost sm" id="soCorrOk">تنفيذ التصحيح</button></details>' : '') +
       '<div id="soRej" class="hidden"><label id="soRejL">سبب الرفض (هيظهر للعميل) *</label><input id="soReason" maxlength="300" placeholder="مثلاً: المنتج خلص من المخزن"><div style="height:8px"></div><button type="button" class="btn" id="soRejOk" style="background:#DC2626">تأكيد الرفض</button></div>' +
       '<div id="soErr"></div>' +
-      '<h3 style="margin:16px 0 4px">سجل الطلب</h3><ul class="so-hist">' + (o.history || []).map(function (h) { return '<li>' + esc(ST_AR[h.s] || h.s) + ' <small>' + esc(odt(h.at)) + (h.by && h.by !== 'customer' ? ' · ' + esc(h.by) : h.by === 'customer' ? ' · العميل' : '') + '</small></li>'; }).join('') + '</ul>', true);
+      '<h3 style="margin:16px 0 4px">سجل الطلب</h3><ul class="so-hist">' + ((o.log && o.log.length) ? o.log.map(function (h) {
+        return '<li>' + (h.correction ? '🛠️ تصحيح: ' : '') + (h.from ? esc(ST_AR[h.from] || h.from) + ' ← ' : '') + '<b>' + esc(ST_AR[h.s] || h.s) + '</b> <small>' + esc(odt(h.at)) + ' · ' + esc(h.role === 'customer' ? 'العميل' + (h.by ? ' (' + h.by + ')' : '') : h.by || 'النظام') + (h.reason ? ' · السبب: ' + esc(h.reason) : '') + '</small></li>';
+      }).join('') : (o.history || []).map(function (h) { return '<li>' + esc(ST_AR[h.s] || h.s) + ' <small>' + esc(odt(h.at)) + (h.by && h.by !== 'customer' ? ' · ' + esc(h.by) : h.by === 'customer' ? ' · العميل' : '') + '</small></li>'; }).join('')) + '</ul>', true);
+    var rb = $('#soInvRetry', body); if (rb) rb.onclick = function () {
+      var btn = this; busy(btn, true);
+      sh('retryInvoice', { id: o.id }).then(function (r) { toast('تم تسجيل الفاتورة ' + r.invoice_no + ' ✓ (' + r.points + ' نقطة)'); return reloadOrders(o.id); })
+        .catch(function (e) { toast(e.message, true); busy(btn, false); });
+    };
+    var cb2 = $('#soCorrOk', body); if (cb2) cb2.onclick = function () {
+      var btn = this, rsn = $('#soCorrR').value.trim();
+      if (rsn.length < 3) { $('#soErr').innerHTML = '<div class="err">اكتب سبب التصحيح</div>'; return; }
+      busy(btn, true); $('#soErr').innerHTML = '';
+      sh('correctOrderStatus', { id: o.id, status: $('#soCorrSt').value, reason: rsn, from: o.status }).then(function () { toast('تم التصحيح ✓'); return reloadOrders(o.id); })
+        .catch(function (e) { $('#soErr').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; busy(btn, false); });
+    };
     $('#soNotesOk').onclick = function () {
       var btn = this; busy(btn, true);
       sh('saveOrderNotes', { id: o.id, notes: $('#soNotes').value }).then(function () { o.admin_notes = $('#soNotes').value; toast('تم حفظ الملاحظات ✓'); })
@@ -438,7 +586,10 @@
     var REJ = 'rejected';
     function set(st, reason, btn) {
       busy(btn, true); $('#soErr').innerHTML = '';
-      sh('setOrderStatus', { id: o.id, status: st, reason: reason || '' }).then(function () { toast('تم تحديث حالة الطلب ✓'); return reloadOrders(o.id); })
+      sh('setOrderStatus', { id: o.id, status: st, reason: reason || '', from: o.status }).then(function (r) {
+        toast(r && r.invoice ? (r.invoice.done ? 'تم إتمام الطلب ✓ فاتورة ' + r.invoice.invoice_no + ' + ' + r.invoice.points + ' نقطة للعميل' : 'تم إتمام الطلب، لكن الفاتورة ما اتسجلتش: ' + r.invoice.error) : 'تم تحديث حالة الطلب ✓', r && r.invoice && !r.invoice.done);
+        pollNow(); return reloadOrders(o.id);
+      })
         .catch(function (e) { $('#soErr').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; busy(btn, false); });
     }
     $all('[data-s]', body).forEach(function (b) {
@@ -474,6 +625,9 @@
   /* ---------------- أكواد الخصم ---------------- */
   var PM = [], PMF = { q: '' };
   function pmState(p) {
+    if (p.state === 'inactive') return ['off', 'موقوف (Inactive)'];
+    if (p.state === 'expired') return ['exp', 'منتهي (Expired)'];
+    if (p.state === 'active' && !(p.max_uses > 0 && p.uses >= p.max_uses)) return ['on', 'شغال (Active)'];
     if (!p.active) return ['off', 'موقوف'];
     if (p.ends_on && p.ends_on < p.today) return ['exp', 'منتهي'];
     if (p.starts_on && p.starts_on > p.today) return ['soon', 'يبدأ ' + p.starts_on];
@@ -504,17 +658,19 @@
         '<div class="ln">خصم <b>' + pmDisc(p) + '</b>' + (p.min_order > 0 ? ' · الحد الأدنى للطلب ' + money(p.min_order) : '') + (scoped ? ' · على منتجات/أقسام معينة' : ' · على إجمالي الطلب') + '</div>' +
         '<div class="ln mu">استُخدم ' + p.uses + (p.max_uses > 0 ? ' من ' + p.max_uses : '') + ' مرة · إجمالي الخصومات ' + money(p.total_discount) +
         (p.starts_on || p.ends_on ? ' · ' + (p.starts_on ? 'من ' + p.starts_on + ' ' : '') + (p.ends_on ? 'لحد ' + p.ends_on : '') : '') + '</div>' +
-        '<div class="ln" style="margin-top:8px;display:flex;gap:8px;align-items:center"><label class="sp-tg"><input type="checkbox" data-act="' + esc(p.id) + '"' + (p.active ? ' checked' : '') + '> مفعّل</label>' +
+        (p.customer_id ? '<div class="ln mu">🎂 كود عيد ميلاد خاص بالعميل ' + esc(p.customer_name || p.customer_id) + '</div>' : '') +
+        '<div class="ln" style="margin-top:8px;display:flex;gap:8px;align-items:center">' + (p.active ? '<button type="button" class="btn sm ghost" data-act="' + esc(p.id) + '" data-on="0" style="color:#DC2626">⏸ إيقاف (Deactivate)</button>'
+          : '<button type="button" class="btn sm" data-act="' + esc(p.id) + '" data-on="1" style="background:#16A34A">▶ تفعيل (Activate)</button>') +
         '<span style="flex:1"></span><button type="button" class="btn sm sp-edit">✏️ تعديل</button></div></div>';
     }).join('');
     $all('[data-pm]', box).forEach(function (el) {
-      el.onclick = function (e) { if (e.target.closest('label,input')) return; promoForm(PM.filter(function (p) { return p.id === el.dataset.pm; })[0]); };
+      el.onclick = function (e) { if (e.target.closest('label,input,button[data-act]')) return; promoForm(PM.filter(function (p) { return p.id === el.dataset.pm; })[0]); };
     });
-    $all('[data-act]', box).forEach(function (cb) {
-      cb.onchange = function () {
-        cb.disabled = true;
-        sh('setPromo', { id: cb.dataset.act, active: cb.checked }).then(function () { toast(cb.checked ? 'الكود اتفعّل ✓' : 'الكود اتوقف'); return reloadPromos(); })
-          .catch(function (e) { cb.checked = !cb.checked; cb.disabled = false; toast(e.message, true); });
+    $all('[data-act]', box).forEach(function (b) {
+      b.onclick = function (e) {
+        e.stopPropagation(); var on = b.dataset.on === '1'; busy(b, true);
+        sh('setPromo', { id: b.dataset.act, active: on }).then(function () { toast(on ? 'الكود اتفعّل ✓' : 'الكود اتوقف، ومحدش هيقدر يستخدمه لحد ما تفعّله تاني'); return reloadPromos(); })
+          .catch(function (er) { busy(b, false); toast(er.message, true); });
       };
     });
   }
@@ -562,4 +718,90 @@
     };
   }
 
+  /* ---------------- الإشعارات داخل لوحة الإدارة (جرس + عداد الطلبات) ---------------- */
+  var NL = [], NMAX = -1, PT = null;
+  function canShop() { try { return can('settings'); } catch (e) { return false; } }
+  function bell() {
+    var who = document.querySelector('#appView .topbar .who'); if (!who) return null;
+    var b = $('#nbBtn');
+    if (!b) {
+      who.insertAdjacentHTML('afterbegin', '<button type="button" class="nb-btn" id="nbBtn" title="الإشعارات">🔔<span class="nb-n hidden" id="nbN"></span></button>');
+      b = $('#nbBtn'); b.onclick = notifCenter;
+    }
+    return b;
+  }
+  function setBadges(r) {
+    var n = $('#nbN'); if (n) { n.textContent = r.unread > 99 ? '99+' : r.unread; n.classList.toggle('hidden', !r.unread); }
+    var nb = document.querySelector('#nav button[data-p="shoporders"] span');
+    if (nb) { var x = nb.querySelector('.nav-n'); if (!x) { x = document.createElement('i'); x.className = 'nav-n'; nb.appendChild(x); } x.textContent = r.pending; x.style.display = r.pending ? '' : 'none'; }
+  }
+  function pollNow() {
+    if (!canShop() || !SESSION) return Promise.resolve();
+    return sh('poll').then(function (r) {
+      bell(); setBadges(r); NL = r.list || [];
+      var mx = NL.reduce(function (m, x) { return Math.max(m, x.id); }, 0);
+      if (NMAX >= 0) { var fresh = NL.filter(function (x) { return x.id > NMAX && x.unread; }); if (fresh.length) toast('🔔 ' + fresh[0].title + (fresh.length > 1 ? ' (+' + (fresh.length - 1) + ')' : '')); }
+      NMAX = Math.max(NMAX, mx);
+      if (CUR === 'shoporders' && fresh && fresh.length && !document.querySelector('.modal')) reloadOrders();
+    }).catch(function () {});
+  }
+  function startPoll() {
+    if (PT || !canShop()) return; bell(); pollNow();
+    PT = setInterval(function () { if (!document.hidden && SESSION) pollNow(); }, 20000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && SESSION) pollNow(); });
+  }
+  function openLink(link) {
+    var m = /^order\/(.+)$/.exec(link || ''), c = /^customer\/(.+)$/.exec(link || '');
+    if (m) { OPEN_ORDER = m[1]; go('shoporders'); }
+    else if (c) openCustomer(c[1]);
+  }
+  function readOrderNotifs(oid) {
+    var ids = NL.filter(function (x) { return x.unread && x.link === 'order/' + oid; }).map(function (x) { return x.id; });
+    if (!ids.length) return;
+    NL.forEach(function (x) { if (ids.indexOf(x.id) >= 0) x.unread = false; });
+    sh('readNotifications', { ids: ids }).then(pollNow).catch(function () {});
+  }
+  function notifCenter() {
+    var body = modal('🔔 الإشعارات', '<div class="empty"><span class="spinner"></span></div>');
+    sh('notifications').then(function (r) {
+      var list = r.list || [];
+      body.innerHTML = (r.unread ? '<div class="toolbar" style="margin-bottom:8px"><span style="flex:1" class="small muted">' + r.unread + ' غير مقروء</span><button type="button" class="btn ghost sm" id="nfAll">✓ تعليم الكل كمقروء</button></div>' : '') +
+        (list.length ? list.map(function (x, i) { return '<button type="button" class="nf-it' + (x.unread ? ' un' : '') + '" data-nf="' + i + '"><b>' + esc(x.title) + '</b>' + (x.body ? '<span>' + esc(x.body) + '</span>' : '') + '<small>' + esc(odt(x.created_at)) + '</small></button>'; }).join('') : '<div class="empty">مفيش إشعارات</div>');
+      var all = $('#nfAll'); if (all) all.onclick = function () { busy(all, true); sh('readNotifications', { ids: 'all' }).then(function () { closeModal(); pollNow(); toast('تم ✓'); }).catch(function (e) { busy(all, false); toast(e.message, true); }); };
+      $all('[data-nf]', body).forEach(function (b) {
+        b.onclick = function () {
+          var x = list[+b.dataset.nf];
+          (x.unread ? sh('readNotifications', { ids: [x.id] }) : Promise.resolve()).then(pollNow).catch(function () {});
+          closeModal(); openLink(x.link);
+        };
+      });
+    }).catch(function (e) { body.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  }
+  var _buildNav = window.buildNav;
+  window.buildNav = function () { _buildNav.apply(this, arguments); startPoll(); if (NMAX >= 0) pollNow(); };
+  var _dash = window.viewDashboard;
+  window.viewDashboard = function (v) {
+    _dash.apply(this, arguments);
+    if (!canShop()) return;
+    var box = document.createElement('div'); box.className = 'card'; box.id = 'homeSoDash'; box.innerHTML = '<div class="empty" style="padding:8px"><span class="spinner"></span></div>';
+    v.parentNode.insertBefore(box, v); drawDash(box, true);
+  };
+
+  setTimeout(function () { var av = $('#appView'); if (SESSION && av && !av.classList.contains('hidden')) startPoll(); }, 1500);
+
+  /* ---------------- سجل المكافآت (الترحيب + عيد الميلاد) ---------------- */
+  var BT_AR = { points: 'نقاط', code: 'كود خصم', percent: 'خصم %', fixed: 'خصم مبلغ', gift: 'هدية' };
+  window.viewRewards = function (v) {
+    sh('rewardsLog').then(function (r) {
+      v.innerHTML = '<div class="card"><h2 style="margin-top:0">🎁 سجل المكافآت</h2>' +
+        '<h3 style="margin:8px 0 4px">🎉 مكافأة التسجيل (Welcome Bonus)</h3>' + (r.welcome.length ? '<div style="overflow-x:auto"><table class="rw-t"><tr><th>العميل</th><th>العضوية</th><th>النقاط</th><th>الوقت</th></tr>' +
+          r.welcome.map(function (w) { return '<tr><td><a href="#" data-cu="' + esc(w.customer_id) + '">' + esc(w.name || w.customer_id) + '</a></td><td>' + esc(w.member_no || '') + '</td><td>' + w.points + '</td><td>' + esc(odt(w.created_at)) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="empty">لسه محدش أخد مكافأة تسجيل</div>') +
+        '<h3 style="margin:16px 0 4px">🎂 عروض عيد الميلاد</h3>' + (r.birthday.length ? '<div style="overflow-x:auto"><table class="rw-t"><tr><th>العميل</th><th>العرض</th><th>الحالة</th><th>الوقت</th></tr>' +
+          r.birthday.map(function (b) {
+            var stt = b.reward_type === 'points' ? 'اتضافت للمحفظة' : b.reward_type === 'code' ? (b.code_used ? 'الكود اتستخدم' : 'الكود لسه ما اتستخدمش') : b.status === 'used' ? 'اتستخدم' + (b.invoice_no ? ' (' + esc(b.invoice_no) + ')' : '') : esc(b.status || '');
+            return '<tr><td><a href="#" data-cu="' + esc(b.customer_id) + '">' + esc(b.name || b.customer_id) + '</a></td><td>' + esc(BT_AR[b.reward_type] || b.reward_type) + (b.value ? ' ' + b.value : '') + (b.promo_code ? '<br><span class="so-promo">' + esc(b.promo_code) + '</span>' : '') + (b.gift_text ? '<br><small>' + esc(b.gift_text) + '</small>' : '') + '</td><td>' + stt + '</td><td>' + esc(odt(b.created_at)) + '</td></tr>';
+          }).join('') + '</table></div>' : '<div class="empty">لسه مفيش عروض عيد ميلاد اتسجلت</div>') + '</div>';
+      $all('[data-cu]', v).forEach(function (a) { a.onclick = function (e) { e.preventDefault(); openCustomer(a.dataset.cu); }; });
+    }).catch(function (e) { v.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  };
 })();
