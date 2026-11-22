@@ -895,6 +895,8 @@ export async function handleShop(body, ctx) {
     const p = args[2] && typeof args[2] === 'object' ? args[2] : {};
     const user = await ctx.verifyAdmin(token);
     if (!user.ok) return { result: user.res };
+    if (REPORT_ACTIONS.indexOf(action) >= 0) { if ((user.permissions || []).indexOf('dashboard') < 0) return bad('ليس لديك صلاحية: التقارير'); return ok(await reportsAdmin(sql, user, action, p)); }
+    if (OWNER_DATA_ACTIONS.indexOf(action) >= 0) { if (user.role !== 'owner') return bad('تصدير البيانات والنسخ الاحتياطي لصاحب المحل بس'); return ok(await ownerData(sql, user, action, p)); }
     if ((user.permissions || []).indexOf('settings') < 0) return bad('ليس لديك صلاحية: إدارة المنتجات');
     const uid = user.user_id || '';
     const since = async () => { const [u] = await sql.unsafe('select created_at from mobily.mc_adminusers where user_id = $1', [uid]); return u && u.created_at ? new Date(u.created_at).toISOString() : '-infinity'; };
@@ -1271,3 +1273,278 @@ export async function handleShop(body, ctx) {
 }
 
 export { STOCK_AR };
+
+// ======================= التقارير التفصيلية، الداشبورد، التصدير، النسخ الاحتياطي =======================
+// REPORT_ACTIONS: لصلاحية «لوحة المؤشرات». OWNER_DATA_ACTIONS: لصاحب المحل بس.
+export const REPORT_ACTIONS = ['salesItems', 'dashShop'];
+export const OWNER_DATA_ACTIONS = ['exportData', 'backupInfo', 'backupCreate', 'backupRestore'];
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TZ = 'Africa/Cairo';
+const OPEN_ST = ['pending', 'approved', 'preparing', 'ready', 'shipped'];
+const invStatusOf = (st) => (st === 'completed' ? 'completed' : st === 'cancelled' || st === 'rejected' ? 'cancelled' : 'open');
+const fmtTs = (v) => {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return String(v);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(d).replace(',', '');
+};
+function dayRange(col, from, to, params) {
+  let w = '';
+  if (DAY_RE.test(T(from))) { params.push(T(from)); w += ` and (${col} at time zone '${TZ}')::date >= $${params.length}::date`; }
+  if (DAY_RE.test(T(to))) { params.push(T(to)); w += ` and (${col} at time zone '${TZ}')::date <= $${params.length}::date`; }
+  return w;
+}
+const jarr = (v) => (Array.isArray(v) ? v : typeof v === 'string' ? (() => { try { const x = JSON.parse(v); return Array.isArray(x) ? x : []; } catch (e) { return []; } })() : []);
+
+// كل صنف في كل فاتورة في سطر مستقل (طلبات أونلاين + ترابيزات + فواتير الكاشير اللي مالهاش أصناف)
+async function salesLines(sql, from, to) {
+  const p1 = [];
+  const orders = await sql.unsafe(`select o.id, o.order_no, o.customer_id, o.customer_name, o.member_no, o.items, o.promo_discount, o.birthday_discount,
+      o.status, o.delivery, o.invoice_no, coalesce(o.completed_at, o.created_at) as inv_at
+    from mobily.mc_shop_orders o
+    where true ${dayRange('coalesce(o.completed_at, o.created_at)', from, to, p1)}`, p1);
+  const prods = await sql.unsafe(`select p.id::text as id, p.code, c.name as cat from mobily.mc_shop_products p left join mobily.mc_shop_categories c on c.id = p.category_id`);
+  const pm = new Map(prods.map((x) => [x.id, x]));
+  const voidInv = new Set((await sql.unsafe(`select invoice_no from mobily.mc_transactions t where invoice_no like 'ONL-%' and status = 'void'
+      and not exists (select 1 from mobily.mc_transactions t2 where t2.invoice_no = t.invoice_no and t2.status <> 'void')`)).map((r) => r.invoice_no));
+  const lines = [];
+  for (const o of orders) {
+    const inv = o.invoice_no || 'ONL-' + o.order_no;
+    let status = invStatusOf(o.status);
+    if (status === 'completed' && voidInv.has(inv)) status = 'void';
+    const items = jarr(o.items);
+    const extra = money2(Number(o.promo_discount || 0) + Number(o.birthday_discount || 0));
+    const base = items.reduce((s, it) => s + Number(it.line_total || 0), 0);
+    let left = extra;
+    items.forEach((it, i) => {
+      const qty = Number(it.qty || 0), total = money2(Number(it.line_subtotal || 0) || Number(it.unit_price || 0) * qty);
+      let share = 0;
+      if (extra > 0 && base > 0) { share = i === items.length - 1 ? left : money2(extra * Number(it.line_total || 0) / base); left = money2(left - share); }
+      const disc = money2(Number(it.line_discount || 0) + share);
+      const pr = pm.get(String(it.product_id || '')) || {};
+      lines.push({
+        invoice_no: inv, order_no: o.order_no, created_at: o.inv_at,
+        customer_id: o.customer_id || '', customer_name: o.customer_name || '', member_no: o.member_no || '',
+        item_name: T(it.name) + (it.variant ? ' – ' + T(it.variant) : '') + (it.color ? ' – ' + T(it.color) : ''), item_code: T(it.code) || T(pr.code), category: pr.cat || '',
+        qty, unit_price: qty ? money2(total / qty) : 0, total, discount: disc, net: money2(total - disc),
+        type: o.delivery === 'delivery' ? 'delivery' : 'pickup', status,
+      });
+    });
+  }
+  const p2 = [];
+  const tx = await sql.unsafe(`select t.invoice_no, t.customer_id, t.member_no, t.amount, t.discount_amount, t.net_amount, t.status, t.created_at, c.name
+    from mobily.mc_transactions t left join mobily.mc_customers c on c.customer_id = t.customer_id and t.customer_id <> ''
+    where t.invoice_no not like 'ONL-%' ${dayRange('t.created_at', from, to, p2)}`, p2);
+  for (const t of tx) {
+    lines.push({
+      invoice_no: t.invoice_no, order_no: null, created_at: t.created_at, customer_id: t.customer_id || '', customer_name: t.name || '', member_no: t.member_no || '',
+      item_name: 'فاتورة كاشير (من غير أصناف)', item_code: '', category: '', qty: 0, unit_price: 0,
+      total: money2(t.amount), discount: money2(t.discount_amount), net: money2(t.net_amount),
+      type: 'store', status: t.status === 'void' ? 'void' : 'completed',
+    });
+  }
+  lines.sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || String(a.invoice_no).localeCompare(String(b.invoice_no)));
+  return lines;
+}
+
+async function dashShop(sql) {
+  const [m] = await sql.unsafe(`select to_char((now() at time zone '${TZ}')::date, 'YYYY-MM-DD') as today, to_char(date_trunc('month', now() at time zone '${TZ}'), 'YYYY-MM-DD') as month_start`);
+  const lines = (await salesLines(sql, m.month_start, m.today)).filter((l) => l.status === 'completed');
+  const [s] = await sql.unsafe(`select
+      coalesce(sum(amount) filter (where (created_at at time zone '${TZ}')::date = $1::date), 0) as today_sales,
+      count(*) filter (where (created_at at time zone '${TZ}')::date = $1::date) as today_count,
+      coalesce(sum(amount), 0) as month_sales, coalesce(sum(net_amount), 0) as month_net, coalesce(sum(discount_amount), 0) as month_disc, count(*) as month_count
+    from mobily.mc_transactions where status <> 'void' and (created_at at time zone '${TZ}')::date between $2::date and $1::date`, [m.today, m.month_start]);
+  const days = await sql.unsafe(`select to_char((created_at at time zone '${TZ}')::date, 'YYYY-MM-DD') as day, sum(amount) as sales, count(*) as count
+    from mobily.mc_transactions where status <> 'void' and (created_at at time zone '${TZ}')::date between $2::date and $1::date group by 1 order by 1`, [m.today, m.month_start]);
+  const [o] = await sql.unsafe(`select
+      count(*) filter (where status = 'pending') as new_orders,
+      count(*) filter (where status = any($2::text[]) and status <> 'pending') as in_progress,
+      count(*) filter (where status = 'completed' and (coalesce(completed_at, updated_at) at time zone '${TZ}')::date >= $1::date) as completed,
+      count(*) filter (where status in ('cancelled', 'rejected') and (updated_at at time zone '${TZ}')::date >= $1::date) as cancelled
+    from mobily.mc_shop_orders`, [m.month_start, OPEN_ST]);
+  const agg = new Map();
+  lines.filter((l) => l.type !== 'store').forEach((l) => {
+    const k = l.item_name;
+    const a = agg.get(k) || { name: k, code: l.item_code, qty: 0, sales: 0 };
+    a.qty += l.qty; a.sales = money2(a.sales + l.net); agg.set(k, a);
+  });
+  const sold = [...agg.values()];
+  const prods = await sql.unsafe(`select name, code from mobily.mc_shop_products where hidden is not true and available is not false`);
+  const soldByBase = new Map();
+  sold.forEach((x) => { const b = x.name.split(' – ')[0]; soldByBase.set(b, (soldByBase.get(b) || 0) + x.qty); });
+  const slow = prods.map((p) => ({ name: p.name, code: p.code || '', qty: soldByBase.get(p.name) || 0 })).sort((a, b) => a.qty - b.qty || a.name.localeCompare(b.name)).slice(0, 5);
+  return {
+    today: m.today, month_start: m.month_start,
+    sales: { today: money2(s.today_sales), today_count: Number(s.today_count), month: money2(s.month_sales), month_count: Number(s.month_count),
+      month_net: money2(s.month_net), month_disc: money2(s.month_disc), avg: Number(s.month_count) ? money2(s.month_sales / Number(s.month_count)) : 0 },
+    days: days.map((d) => ({ day: d.day, sales: money2(d.sales), count: Number(d.count) })),
+    orders: { new_orders: Number(o.new_orders), in_progress: Number(o.in_progress), completed: Number(o.completed), cancelled: Number(o.cancelled) },
+    top_qty: sold.slice().sort((a, b) => b.qty - a.qty).slice(0, 5),
+    top_sales: sold.slice().sort((a, b) => b.sales - a.sales).slice(0, 5),
+    slow,
+  };
+}
+
+async function reportsAdmin(sql, user, action, p) {
+  if (action === 'salesItems') return salesLines(sql, p.from, p.to);
+  if (action === 'dashShop') return dashShop(sql);
+  throw new Error('طلب غير معروف');
+}
+
+// ---------- التصدير لـ Excel: كل نوع بيانات في Sheet، والفترة بتتطبق على البيانات اللي ليها تاريخ ----------
+const TYPE_LBL = { delivery: 'Delivery', pickup: 'Pickup', store: 'Cashier' };
+const INV_ST = { completed: 'Completed', open: 'Open', cancelled: 'Cancelled', 'void': 'Void' };
+const EXPORT_SETS = {
+  sales: { name: 'Sales & Invoices', dated: true, cols: [['Invoice Number', 'invoice_no', 's'], ['Invoice Date', 'created_at', 'd'], ['Customer Name', 'cname'], ['Member No', 'member_no', 's'], ['Amount', 'amount', 'n'], ['Discount', 'discount_amount', 'n'], ['Net Amount', 'net_amount', 'n'], ['Points Earned', 'points_earned', 'n'], ['Employee', 'employee_name'], ['Branch', 'branch_id', 's'], ['Status', 'status'], ['Void Reason', 'void_reason'], ['Transaction ID', 'txn_id', 's']],
+    q: (w) => `select t.*, c.name as cname from mobily.mc_transactions t left join mobily.mc_customers c on c.customer_id = t.customer_id and t.customer_id <> '' where true ${w('t.created_at')} order by t.created_at` },
+  details: { name: 'Sales Details', dated: true, lines: true, cols: [['Invoice Number', 'invoice_no', 's'], ['Invoice Date', 'created_at', 'd'], ['Customer Name', 'customer_name'], ['Item Code', 'item_code', 's'], ['Item Name', 'item_name'], ['Category', 'category'], ['Quantity', 'qty', 'n'], ['Unit Price', 'unit_price', 'n'], ['Total Item Value', 'total', 'n'], ['Discount', 'discount', 'n'], ['Net Amount', 'net', 'n'], ['Order Type', 'type_l'], ['Invoice Status', 'status_l']] },
+  products: { name: 'Products', cols: [['Item Code', 'code', 's'], ['Item Name', 'name'], ['Category', 'cat'], ['Price', 'price', 'n'], ['Old Price', 'old_price', 'n'], ['Available', 'available', 'b'], ['Hidden', 'hidden', 'b'], ['Stock', 'stock_total', 'n'], ['Low Stock Alert', 'low_stock', 'n'], ['Allow Preorder', 'allow_preorder', 'b'], ['Points', 'points_l'], ['General Offers', 'gen_l'], ['Special Offers', 'spec_l'], ['Description', 'description'], ['Product ID', 'id', 's'], ['Created At', 'created_at', 'd']],
+    q: () => `select p.*, c.name as cat, coalesce((select sum(s.physical) from mobily.mc_shop_stock s where s.product_id = p.id), p.stock) as stock_total,
+      case when p.earn_points is null then 'Category' when p.earn_points then 'Yes' else 'No' end as points_l,
+      case when p.allow_general_offers is null then 'Category' when p.allow_general_offers then 'Yes' else 'No' end as gen_l,
+      case when p.allow_special_offers is null then 'Category' when p.allow_special_offers then 'Yes' else 'No' end as spec_l
+      from mobily.mc_shop_products p left join mobily.mc_shop_categories c on c.id = p.category_id order by c.sort, p.name` },
+  categories: { name: 'Product Categories', cols: [['Category', 'name'], ['Icon', 'icon'], ['Sort', 'sort', 'n'], ['Hidden', 'hidden', 'b'], ['Points Enabled', 'earn_points', 'b'], ['General Offers', 'allow_general_offers', 'b'], ['Special Offers', 'allow_special_offers', 'b'], ['Products Count', 'n', 'n'], ['Category ID', 'id', 's']],
+    q: () => `select c.*, (select count(*) from mobily.mc_shop_products p where p.category_id = c.id) as n from mobily.mc_shop_categories c order by c.sort, c.name` },
+  customers: { name: 'Customers', cols: [['Member No', 'member_no', 's'], ['Name', 'name'], ['Phone', 'phone', 's'], ['Status', 'status'], ['Tier', 'tier'], ['Birthdate', 'birthdate', 's'], ['Branch', 'branch_id', 's'], ['WhatsApp Opt-in', 'wa_opt_in', 'b'], ['Points Balance', 'points_balance', 'n'], ['Lifetime Points', 'lifetime_points', 'n'], ['Total Spent', 'total_spent', 'n'], ['Purchases', 'purchases_count', 'n'], ['Last Purchase', 'last_purchase_at', 'd'], ['Registered At', 'created_at', 'd'], ['Notes', 'notes'], ['Customer ID', 'customer_id', 's']],
+    q: () => `select * from mobily.mc_customers order by created_at` },
+  ledger: { name: 'Loyalty Points', dated: true, cols: [['Date', 'created_at', 'd'], ['Member No', 'member_no', 's'], ['Customer Name', 'cname'], ['Type', 'type'], ['Points', 'points', 'n'], ['Balance After', 'balance_after', 'n'], ['Invoice Number', 'invoice_no', 's'], ['Reason', 'reason'], ['Expires At', 'expires_at', 'd'], ['Employee', 'employee_name'], ['Entry ID', 'entry_id', 's']],
+    q: (w) => `select l.*, c.name as cname, c.member_no from mobily.mc_pointsledger l left join mobily.mc_customers c on c.customer_id = l.customer_id where true ${w('l.created_at')} order by l.created_at` },
+  redemptions: { name: 'Loyalty Redemptions', dated: true, cols: [['Date', 'created_at', 'd'], ['Invoice Number', 'invoice_no', 's'], ['Member No', 'member_no', 's'], ['Customer Name', 'cname'], ['Points Used', 'points_used', 'n'], ['Discount %', 'discount_percent', 'n'], ['Invoice Amount', 'invoice_amount', 'n'], ['Discount', 'discount_amount', 'n'], ['Employee', 'employee_name'], ['Status', 'status'], ['Redemption ID', 'redemption_id', 's']],
+    q: (w) => `select r.*, c.name as cname, c.member_no from mobily.mc_redemptions r left join mobily.mc_customers c on c.customer_id = r.customer_id where true ${w('r.created_at')} order by r.created_at` },
+  offers: { name: 'Offers', cols: [['Title', 'title'], ['Description', 'description'], ['Type', 'offer_type'], ['Start', 'start_date', 'd'], ['End', 'end_date', 'd'], ['Target', 'target_type'], ['Target Value', 'target_value', 's'], ['Active', 'active', 'b'], ['Created By', 'created_by'], ['Offer ID', 'offer_id', 's']],
+    q: () => `select * from mobily.mc_offers order by created_at` },
+  promos: { name: 'Discount Codes', cols: [['Code', 'code', 's'], ['Kind', 'kind'], ['Value', 'value', 'n'], ['Min Order', 'min_order', 'n'], ['Max Discount', 'max_discount', 'n'], ['Starts On', 'starts_on', 's'], ['Ends On', 'ends_on', 's'], ['Max Uses', 'max_uses', 'n'], ['Per Customer', 'per_customer', 'n'], ['Active', 'active', 'b'], ['Stackable', 'stackable', 'b'], ['Uses', 'uses', 'n']],
+    q: () => `select pr.*, to_char(pr.starts_on, 'YYYY-MM-DD') as starts_on, to_char(pr.ends_on, 'YYYY-MM-DD') as ends_on, (select count(*) from mobily.mc_shop_orders o where o.promo_id = pr.id and o.status not in ('cancelled','rejected')) as uses from mobily.mc_shop_promos pr order by pr.created_at` },
+  birthday: { name: 'Birthday Rewards', dated: true, cols: [['Created At', 'created_at', 'd'], ['Member No', 'member_no', 's'], ['Customer Name', 'cname'], ['Occasion', 'occasion'], ['Start', 'start_date', 's'], ['End', 'end_date', 's'], ['Reward Type', 'reward_type'], ['Value', 'value', 'n'], ['Status', 'status'], ['Invoice Number', 'invoice_no', 's'], ['Discount', 'discount_amount', 'n'], ['Used At', 'used_at', 'd']],
+    q: (w) => `select b.*, c.name as cname from mobily.mc_birthdayrewards b left join mobily.mc_customers c on c.customer_id = b.customer_id where true ${w('b.created_at')} order by b.created_at` },
+  orders: { name: 'Orders', dated: true, cols: [['Order No', 'order_no', 's'], ['Date', 'created_at', 'd'], ['Customer Name', 'customer_name'], ['Phone', 'customer_phone', 's'], ['Member No', 'member_no', 's'], ['Order Type', 'type_l'], ['Items', 'items_txt'], ['Subtotal', 'subtotal', 'n'], ['Product Discount', 'product_discount', 'n'], ['Promo Code', 'promo_code', 's'], ['Promo Discount', 'promo_discount', 'n'], ['Birthday Discount', 'birthday_discount', 'n'], ['Delivery Fee', 'shipping', 'n'], ['Total', 'total', 'n'], ['Status', 'status'], ['Branch', 'branch_name'], ['Address', 'address'], ['Notes', 'notes'], ['Invoice Number', 'invoice_no', 's'], ['Completed At', 'completed_at', 'd']],
+    q: (w) => `select * from mobily.mc_shop_orders where true ${w('created_at')} order by order_no` },
+  branches: { name: 'Branches', cols: [['Branch ID', 'branch_id', 's'], ['Name', 'name'], ['Address', 'address'], ['Phone', 'phone', 's'], ['Active', 'active', 'b']], q: () => `select * from mobily.mc_branches order by name` },
+  employees: { name: 'Employees', cols: [['Employee ID', 'employee_id', 's'], ['Name', 'name'], ['Phone', 'phone', 's'], ['Job Title', 'job_title'], ['Branch', 'branch_id', 's'], ['Active', 'active', 'b']], q: () => `select * from mobily.mc_employees order by name` },
+  tiers: { name: 'Tiers', cols: [['Tier', 'name_ar'], ['Tier (EN)', 'name_en'], ['Min Lifetime Points', 'min_lifetime_points', 'n'], ['Active', 'active', 'b']], q: () => `select * from mobily.mc_tiers order by sort` },
+};
+export const EXPORT_KEYS = Object.keys(EXPORT_SETS);
+
+async function exportData(sql, p) {
+  const keys = (Array.isArray(p.sets) ? p.sets : []).filter((k) => EXPORT_SETS[k]);
+  if (!keys.length) throw new Error('اختار البيانات اللي عايز تصدّرها');
+  const out = [];
+  for (const k of keys) {
+    const def = EXPORT_SETS[k];
+    let rows;
+    if (def.lines) rows = await salesLines(sql, p.from, p.to);
+    else {
+      const params = [];
+      const w = (col) => (def.dated ? dayRange(col, p.from, p.to, params) : '');
+      rows = await sql.unsafe(def.q(w), params);
+    }
+    const data = rows.map((r) => {
+      if (k === 'details') { r.type_l = TYPE_LBL[r.type] || r.type; r.status_l = INV_ST[r.status] || r.status; }
+      if (k === 'orders') { r.type_l = TYPE_LBL[r.delivery] || r.delivery; r.items_txt = jarr(r.items).map((i) => T(i.name) + (i.variant ? ' – ' + T(i.variant) : '') + ' × ' + i.qty).join(' | '); }
+      return def.cols.map(([, key, t]) => {
+        const v = r[key];
+        if (t === 'd') return fmtTs(v);
+        if (t === 'n') return v === null || v === undefined || v === '' ? null : Number(v);
+        if (t === 'b') return v === true ? 'Yes' : v === false ? 'No' : '';
+        return v === null || v === undefined ? '' : String(v);
+      });
+    });
+    out.push({ key: k, name: def.name, cols: def.cols.map(([l]) => l), types: def.cols.map(([, , t]) => t || 's'), rows: data });
+  }
+  return { sheets: out, from: T(p.from), to: T(p.to) };
+}
+
+// ---------- النسخ الاحتياطي الكامل: كل جداول mobily (ما عدا جلسات الدخول المؤقتة وسجل النسخ نفسه) ----------
+const BACKUP_SKIP = ['mc_cache', 'mc_backups'];
+async function backupTables(q) {
+  const rows = await q.unsafe(`select table_name from information_schema.tables where table_schema = 'mobily' and table_type = 'BASE TABLE' order by table_name`);
+  return rows.map((r) => r.table_name).filter((t) => BACKUP_SKIP.indexOf(t) < 0 && /^[a-z0-9_]+$/.test(t));
+}
+async function tableCols(q, t) {
+  return q.unsafe(`select column_name, column_default, is_identity, is_generated from information_schema.columns where table_schema = 'mobily' and table_name = $1 order by ordinal_position`, [t]);
+}
+// بصمة الملف بترتيب ثابت للمفاتيح، عشان تفضل مطابقة مهما كان البرنامج اللي فتح الملف وحفظه
+const canon = (v) => (Array.isArray(v) ? '[' + v.map(canon).join(',') + ']' : v && typeof v === 'object'
+  ? '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}' : JSON.stringify(v === undefined ? null : v));
+async function sha256(str) {
+  const h = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function backupCreate(sql, user, p) {
+  const note = T(p.note).slice(0, 200);
+  const tables = {};
+  const counts = {};
+  for (const t of await backupTables(sql)) {
+    const cols = (await tableCols(sql, t)).filter((c) => c.is_generated !== 'ALWAYS').map((c) => c.column_name);
+    const [r] = await sql.unsafe(`select coalesce(json_agg(x), '[]')::text as j from mobily."${t}" x`);
+    const rows = JSON.parse(r.j);
+    tables[t] = { columns: cols, rows };
+    counts[t] = rows.length;
+  }
+  const body = JSON.stringify(tables);
+  const checksum = await sha256(canon(tables));
+  const [m] = await sql.unsafe(`insert into mobily.mc_backups (kind, created_by, note, size_bytes, tables_count, rows_count, checksum)
+    values ('backup', $1, $2, $3, $4, $5, $6) returning id, created_at`,
+    [user.name || '', note, body.length, Object.keys(tables).length, Object.values(counts).reduce((a, b) => a + b, 0), checksum]);
+  return { format: 'mobily-backup', version: 1, backup_id: Number(m.id), created_at: m.created_at, created_by: user.name || '', note, counts, checksum, tables };
+}
+
+async function backupInfo(sql) {
+  return sql.unsafe(`select id, kind, created_at, created_by, note, size_bytes, tables_count, rows_count, checksum from mobily.mc_backups order by id desc limit 50`);
+}
+
+// استرجاع: بيتأكد من سلامة الملف (الـ checksum والجداول والأعمدة)، وبعدين يستبدل البيانات كلها جوه transaction واحدة.
+// dry_run = تجربة كاملة جوه transaction وبعدين بترجع زي ما كانت (للتأكد إن الملف هيترجع فعلاً قبل التنفيذ).
+async function backupRestore(sql, user, p) {
+  const b = p.backup;
+  if (!b || b.format !== 'mobily-backup' || !b.tables || typeof b.tables !== 'object') throw new Error('الملف ده مش نسخة احتياطية من MOBILY CLUB');
+  const sum = await sha256(canon(b.tables));
+  if (sum !== b.checksum) throw new Error('الملف متغيّر أو ناقص (الـ checksum مش مطابق). مش هينفع يترجع.');
+  if (!p.dry_run && T(p.confirm) !== 'استرجاع') throw new Error('اكتب كلمة «استرجاع» للتأكيد');
+  const ROLLBACK = '__dry_run__';
+  const result = { tables: {}, skipped: [] };
+  try {
+    await sql.begin(async (tx) => {
+      await tx.unsafe('set local session_replication_role = replica');
+      const live = await backupTables(tx);
+      for (const t of Object.keys(b.tables)) {
+        if (live.indexOf(t) < 0) { result.skipped.push(t); continue; }
+        const src = b.tables[t];
+        if (!src || !Array.isArray(src.rows) || !Array.isArray(src.columns)) throw new Error('جدول ' + t + ' في الملف ناقص');
+        const cur = (await tableCols(tx, t)).filter((c) => c.is_generated !== 'ALWAYS');
+        const names = cur.map((c) => c.column_name).filter((c) => src.columns.indexOf(c) >= 0);
+        await tx.unsafe(`delete from mobily."${t}"`);
+        if (src.rows.length && names.length) {
+          const cl = names.map((c) => '"' + c.replace(/"/g, '') + '"').join(', ');
+          for (let i = 0; i < src.rows.length; i += 500) {
+            await tx.unsafe(`insert into mobily."${t}" (${cl}) overriding system value select ${cl} from json_populate_recordset(null::mobily."${t}", ($1::text)::json)`, [JSON.stringify(src.rows.slice(i, i + 500))]);
+          }
+        }
+        for (const c of cur) {
+          if (!(c.is_identity === 'YES' || /^nextval\(/.test(c.column_default || ''))) continue;
+          await tx.unsafe(`select setval(pg_get_serial_sequence('mobily."${t}"', $1), greatest(coalesce((select max("${c.column_name.replace(/"/g, '')}") from mobily."${t}"), 0), 1), (select count(*) > 0 from mobily."${t}"))`, [c.column_name]);
+        }
+        const [n] = await tx.unsafe(`select count(*)::int as n from mobily."${t}"`);
+        result.tables[t] = n.n;
+      }
+      if (p.dry_run) throw new Error(ROLLBACK);
+      await tx.unsafe(`insert into mobily.mc_backups (kind, created_by, note, size_bytes, tables_count, rows_count, checksum)
+        values ('restore', $1, $2, 0, $3, $4, $5)`, [user.name || '', 'استرجاع نسخة ' + fmtTs(b.created_at), Object.keys(result.tables).length, Object.values(result.tables).reduce((a, c) => a + c, 0), b.checksum]);
+    });
+  } catch (e) {
+    if (e && e.message === ROLLBACK) return { dry_run: true, ok: true, ...result };
+    throw e;
+  }
+  return { dry_run: false, ok: true, ...result };
+}
+
+async function ownerData(sql, user, action, p) {
+  if (action === 'exportData') return exportData(sql, p);
+  if (action === 'backupInfo') return backupInfo(sql);
+  if (action === 'backupCreate') return backupCreate(sql, user, p);
+  if (action === 'backupRestore') return backupRestore(sql, user, p);
+  throw new Error('طلب غير معروف');
+}
