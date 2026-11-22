@@ -77,7 +77,8 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--brand);flex:0 0 a
 .btn.wa{background:#25D366;color:#062612;box-shadow:0 12px 30px -14px rgba(37,211,102,.8)}
 .btn.sm{width:auto;padding:8px 14px;font-size:13.5px;border-radius:11px}
 .btn svg{width:20px;height:20px}
-.row{display:flex;gap:10px}.row>*{flex:1}
+.row{display:flex;gap:10px}.row>*{flex:1;min-width:0}
+input[type=date]{min-width:0;max-width:100%}
 .err{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.35);color:#FECACA;border-radius:12px;padding:10px 12px;font-size:13.5px;margin:10px 0}
 .okmsg{background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.35);color:#A7F3D0;border-radius:12px;padding:10px 12px;font-size:13.5px;margin:10px 0}
 .hidden{display:none!important}
@@ -178,6 +179,8 @@ body.admin .pos{color:#059669}body.admin .neg{color:#DC2626}
 .nav button.on .nav-ic{background:var(--c);color:#fff}
 .nav button.on::before{content:"";position:absolute;right:-12px;top:8px;bottom:8px;width:4px;border-radius:4px 0 0 4px;background:#0891B2}
 .shell .main{flex:1;min-width:0}
+body.admin{overflow-x:clip}.grid>*,.card{min-width:0}.two{grid-template-columns:minmax(0,1fr)}
+.btn.danger{background:#DC2626;color:#fff;border-color:#DC2626}.btn.danger:disabled{opacity:.5}
 @media (max-width:900px), (pointer:coarse) and (max-width:1100px){
   .nav{flex-basis:84px;width:84px;padding:8px 5px;gap:3px}
   .nav button{flex-direction:column;gap:3px;padding:8px 2px;text-align:center;font-size:10.5px;line-height:1.25;justify-content:center}
@@ -216,8 +219,7 @@ h2 .kpi-arrow{position:static;font-size:16px}
 .tbl tr.tot td{background:#F8FAFC;border-top:2px solid var(--line)}
 .kpi span{font-size:12.5px;color:var(--muted);font-weight:700}
 .kpi b{display:block;font-family:'Inter',sans-serif;font-size:24px;font-weight:800;margin-top:2px}
-.two{grid-template-columns:1fr}
-@media(min-width:900px){.two{grid-template-columns:1fr 1fr}.sales-grid{grid-template-columns:1.1fr .9fr}}
+@media(min-width:900px){.two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.sales-grid{grid-template-columns:1.1fr .9fr}}
 .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow)}
 .card h2{font-size:16px}
 .tbl{width:100%;border-collapse:collapse;font-size:13.5px}
@@ -464,17 +466,18 @@ function boot() {
     $('#topLogo').innerHTML = logoHtml(PS);
     $('#whoName').textContent = ME.display_name + ' (' + ME.username + ')';
     buildNav();
-    go(can(CUR) || CUR === 'qr' ? CUR : (can('dashboard') ? 'dashboard' : 'sales'));
+    go(can(CUR) || CUR === 'qr' || ((CUR === 'export' || CUR === 'backup') && ME.role === 'owner') ? CUR : (can('dashboard') ? 'dashboard' : 'sales'));
   }).catch(function (e) { showLogin(e.message); });
 }
 
 var PAGES = [
   ['dashboard', 'لوحة المؤشرات', 'dashboard', '📊', '#0891B2'], ['reports', 'التقارير', 'dashboard', '📈', '#2563EB'], ['sales', 'تسجيل بيع / استبدال', 'sales', '🧾', '#16A34A'], ['customers', 'العملاء', 'customers_view', '👥', '#2563EB'],
   ['offers', 'العروض', 'offers_manage', '🎁', '#DB2777'], ['products', 'المنتجات', 'settings', '🛍️', '#EA580C'], ['shoporders', 'طلبات المنتجات', 'settings', '📦', '#0D9488'], ['promos', 'أكواد الخصم', 'settings', '🏷️', '#7C3AED'], ['whatsapp', 'واتساب', 'whatsapp', '💬', '#059669'], ['birthdays', 'أعياد الميلاد', 'whatsapp', '🎂', '#E11D48'], ['ledger', 'سجل النقاط', 'customers_view', '⭐', '#D97706'], ['rewards', 'سجل المكافآت', 'settings', '🏅', '#B45309'],
-  ['settings', 'الإعدادات', 'settings', '⚙️', '#475569'], ['users', 'الموظفون', 'users_manage', '🧑‍💼', '#7C3AED'], ['activity', 'سجل العمليات', 'audit', '📋', '#0F766E'], ['requests', 'طلبات تعديل', 'settings', '📝', '#0284C7'], ['qr', 'QR المحل', null, '🔳', '#0B1222']
+  ['settings', 'الإعدادات', 'settings', '⚙️', '#475569'], ['users', 'الموظفون', 'users_manage', '🧑‍💼', '#7C3AED'], ['activity', 'سجل العمليات', 'audit', '📋', '#0F766E'], ['requests', 'طلبات تعديل', 'settings', '📝', '#0284C7'], ['export', 'Export Data to Excel', null, '📗', '#16A34A'], ['backup', 'Backup & Restore', null, '🛡️', '#0F766E'], ['qr', 'QR المحل', null, '🔳', '#0B1222']
 ];
 function pageOk(p) {
   if (p[0] === 'birthdays' && !hasFeature('birthday')) return false;
+  if (p[0] === 'export' || p[0] === 'backup') return !!(ME && ME.role === 'owner');
   return !p[2] || can(p[2]);
 }
 function buildNav() {
@@ -491,7 +494,7 @@ function go(p, opt) {
     (GO_OPT.label ? '<span class="badge gold">' + esc(GO_OPT.label) + '</span>' : '') + '</div>' : '') + '<div id="viewIn"></div>';
   if (back) $('#backBtn').onclick = function () { go(back[0], back[2]); };
   var v = $('#viewIn'); loading(v);
-  ({ dashboard: viewDashboard, reports: viewReports, birthdays: viewBirthdays, sales: viewSales, customers: viewCustomers, offers: viewOffers, shoporders: function (v) { if (window.viewShopOrders) viewShopOrders(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, rewards: function (v) { if (window.viewRewards) viewRewards(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, promos: function (v) { if (window.viewShopPromos) viewShopPromos(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, products: function (v) { if (window.viewProducts) viewProducts(v); else v.innerHTML = '<div class="err">تعذر تحميل صفحة المنتجات، حدّث الصفحة</div>'; }, whatsapp: viewWhatsApp,
+  ({ dashboard: function (v) { if (window.viewDashboard2) viewDashboard2(v); else viewDashboard(v); }, export: function (v) { if (window.viewExport) viewExport(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, backup: function (v) { if (window.viewBackup) viewBackup(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, reports: viewReports, birthdays: viewBirthdays, sales: viewSales, customers: viewCustomers, offers: viewOffers, shoporders: function (v) { if (window.viewShopOrders) viewShopOrders(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, rewards: function (v) { if (window.viewRewards) viewRewards(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, promos: function (v) { if (window.viewShopPromos) viewShopPromos(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, products: function (v) { if (window.viewProducts) viewProducts(v); else v.innerHTML = '<div class="err">تعذر تحميل صفحة المنتجات، حدّث الصفحة</div>'; }, whatsapp: viewWhatsApp,
      ledger: viewLedger, settings: viewSettings, users: viewUsers, activity: viewActivity, requests: viewRequests, qr: viewQR }[p] || viewDashboard)(v);
 }
 
@@ -554,6 +557,7 @@ var REP_RANGES = [['today', 'النهارده'], ['7', 'آخر 7 أيام'], ['3
 /* سجل التقارير: لإضافة تقرير جديد أضف عنصراً هنا فقط */
 var REPORTS = [
   { id: 'summary', t: 'ملخص الفترة', ic: '📊', d: 'المبيعات والفواتير والعملاء والنقاط والموظفين في فترة تختارها', perm: 'dashboard', feat: 'reports', dates: true },
+  { id: 'items', t: 'تقرير المبيعات بالأصناف (Item Level)', ic: '🧾', d: 'كل صنف في كل فاتورة في سطر: الكود، الكمية، السعر، الخصم، الصافي، مع فلاتر وملخص', perm: 'dashboard', custom: function (v, r) { if (window.viewItemsReport) viewItemsReport(v, r); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; } },
   { id: 'sales', t: 'تقرير المبيعات (الفواتير)', ic: '🧾', d: 'كل فاتورة: العميل، القيمة، الخصم، الصافي، النقاط، الموظف', perm: 'dashboard', feat: 'reports', dates: true,
     load: function (f) { return call('reports', { kind: 'sales', from: f.from, to: f.to }); },
     sel: [{ k: 'status', l: 'الحالة', opts: [['valid', 'سارية'], ['void', 'ملغية'], ['', 'الكل']], test: function (r, v) { return r.status === v; } },
@@ -614,11 +618,12 @@ function viewReports(v) {
   var r = GO_OPT.report && repById(GO_OPT.report);
   if (r && repOk(r)) return viewReport(v, r);
   var list = REPORTS.filter(repOk);
-  v.innerHTML = '<div class="card"><h2>📈 التقارير</h2><p class="small muted">اختار التقرير اللي عايزه. كل تقرير فيه فلاتر وبحث وترتيب، وتقدر تنزّله Excel.</p>' +
+  v.innerHTML = '<div class="card"><h2>📈 التقارير</h2><p class="small muted">اختار التقرير اللي عايزه. كل تقرير فيه فلاتر وبحث وترتيب' + (ME && ME.role === 'owner' ? '، وتقدر تنزّله Excel' : '') + '.</p>' +
     '<div class="rep-grid">' + list.map(function (x) { return '<button type="button" class="rep-card" data-rep="' + x.id + '"><i>' + x.ic + '</i><b>' + esc(x.t) + '</b><span>' + esc(x.d) + '</span></button>'; }).join('') + '</div></div>';
   $all('[data-rep]', v).forEach(function (b) { b.onclick = function () { go('reports', { report: b.dataset.rep, back: ['reports', 'قائمة التقارير'] }); }; });
 }
 function viewReport(v, r) {
+  if (r.custom) return r.custom(v, r);
   var f = { range: GO_OPT.range || (r.id === 'summary' ? '30' : 'all'), from: '', to: '', days: DASH_DAYS.inactive || 90 };
   if (f.range) { var x0 = rangeDates(f.range); f.from = x0.from; f.to = x0.to; }
   var rowsAll = [];
@@ -707,7 +712,7 @@ function cellHtml(c, row) {
 }
 function dataTable(box, cfg) {
   var st = { q: '', sk: cfg.sort ? cfg.sort[0] : null, sd: cfg.sort ? cfg.sort[1] : 1 };
-  box.innerHTML = '<div class="card"><div class="toolbar"><input id="dtQ" placeholder="بحث في النتائج"><button class="btn ghost sm" id="dtCsv" type="button">⬇️ تنزيل Excel</button></div>' +
+  box.innerHTML = '<div class="card"><div class="toolbar"><input id="dtQ" placeholder="بحث في النتائج">' + (ME && ME.role === 'owner' ? '<button class="btn ghost sm" id="dtCsv" type="button">📗 تنزيل Excel</button>' : '') + '</div>' +
     '<div class="small muted" id="dtInfo" style="margin:0 4px 8px"></div><div id="dtBody"></div></div>';
   var visible = function () {
     var q = st.q.trim().toLowerCase(), rows = cfg.rows;
@@ -742,16 +747,13 @@ function dataTable(box, cfg) {
     $all('#dtBody [data-cid]').forEach(function (tr) { tr.onclick = function () { openCustomer(tr.dataset.cid); }; });
   };
   var t; $('#dtQ').addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { st.q = $('#dtQ').value; render(); }, 200); });
-  $('#dtCsv').onclick = function () {
-    var rows = visible();
-    var q = function (x) { x = x === undefined || x === null ? '' : String(x); return '"' + x.replace(/"/g, '""') + '"'; };
-    var lines = [cfg.cols.map(function (c) { return q(c.l); }).join(',')].concat(rows.map(function (row) {
-      return cfg.cols.map(function (c) { var v = row[c.k]; return q(c.date ? (v ? fmtDate(v, 'ar', 1) : '') : (c.map ? cellVal(c, row) : v)); }).join(',');
-    }));
-    var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
-    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mobily-' + cfg.file + '-' + dayKey(new Date()) + '.csv';
-    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    toast('تم تنزيل الملف ✓');
+  if ($('#dtCsv')) $('#dtCsv').onclick = function () {
+    var rows = visible(), b = this;
+    if (!window.xlsxDownload) return toast('حدّث الصفحة', true);
+    busy(b, true);
+    xlsxDownload([{ name: cfg.file, cols: cfg.cols.map(function (c) { return c.l; }), types: cfg.cols.map(function (c) { return c.num || c.money || c.pct ? 'n' : 's'; }),
+      rows: rows.map(function (row) { return cfg.cols.map(function (c) { var v = row[c.k]; return c.date ? (v ? fmtDate(v, 'ar', 1) : '') : (c.map ? cellVal(c, row) : v); }); }) }],
+      'mobily-' + cfg.file + '-' + dayKey(new Date()) + '.xlsx').then(function () { toast('تم تنزيل الملف ✓'); }).catch(function (e) { toast(e.message, true); }).then(function () { busy(b, false); });
   };
   render();
 }
@@ -1656,6 +1658,7 @@ function viewQR(v) {
 boot();
 </script>
 
-<script src="shop-admin.js?v=3a37087ace"></script>
+<script src="shop-admin.js?v=aaeeaa36fb"></script>
+<script src="reports-admin.js?v=b4f6788c7e"></script>
 </body>
 </html>
