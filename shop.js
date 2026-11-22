@@ -67,6 +67,8 @@
     '.pd-price .sv{font-size:12.5px;font-weight:800;color:#FDA4AF;background:rgba(244,63,94,.14);border-radius:999px;padding:3px 10px}',
     '.pd-av{display:inline-flex;align-items:center;gap:6px;font-weight:800;font-size:13.5px;border-radius:999px;padding:4px 12px}',
     '.pd-av.y{background:rgba(52,211,153,.13);color:var(--ok)}.pd-av.n{background:rgba(248,113,113,.13);color:var(--bad)}',
+    '.pd-np{margin-top:8px;font-size:13px;font-weight:700;color:#FBBF24}',
+    'small.np{display:block;color:#FBBF24!important;font-weight:700}',
     '.pd-sec{margin-top:16px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px}',
     '.pd-sec h3{font-size:15px;margin:0 0 10px}',
     '.pd-desc{white-space:pre-line;font-size:14.5px;line-height:1.85;color:#DCE3F5}',
@@ -295,12 +297,14 @@
       window.scrollTo(0, y);
     }).catch(function () { });
   }
-  function bdCovers(p) { return !!BD && ((!BD.product_ids.length && !BD.category_ids.length) || BD.product_ids.indexOf(p.id) >= 0 || (!!p.category_id && BD.category_ids.indexOf(p.category_id) >= 0)); }
+  function bdAll() { return !!BD && !BD.product_ids.length && !BD.category_ids.length; }
+  // العرض على كل المنتجات = عرض عام، على منتجات/أقسام بعينها = عرض خاص (كل منتج حسب إعداد «السماح بالعروض» بتاعه)
+  function bdCovers(p) { return !!BD && (bdAll() ? p.ofg !== false : p.ofs !== false && (BD.product_ids.indexOf(p.id) >= 0 || (!!p.category_id && BD.category_ids.indexOf(p.category_id) >= 0))); }
   function bdEnd() { if (!BD || !BD.end) return ''; var x = new Date(BD.end + 'T12:00:00'); return isNaN(x) ? '' : x.toLocaleDateString('ar-EG-u-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' }); }
   function bdBanner() {
     if (!BD) return '';
     return '<div class="bd-ban"><div class="ic">🎂</div><div><b>' + esc(BD.name) + ': ' + esc(BD.text) + '</b><small>عرض خاص بعيد ميلادك يا ' + esc(BD.customer || '') + ' 🎉 الخصم بيتطبق تلقائي على ' +
-      (!BD.product_ids.length && !BD.category_ids.length ? 'كل المنتجات' : 'المنتجات اللي عليها علامة 🎂') + ' لما تطلب.' + (bdEnd() ? ' صالح لحد ' + esc(bdEnd()) + '.' : '') + '</small></div></div>';
+      (bdAll() && !(DATA && DATA.products.some(function (p) { return p.ofg === false; })) ? 'كل المنتجات' : 'المنتجات اللي عليها علامة 🎂') + ' لما تطلب.' + (bdEnd() ? ' صالح لحد ' + esc(bdEnd()) + '.' : '') + '</small></div></div>';
   }
   var PUSHES = 0;
   function nav(h) { if (location.hash !== h) { history.pushState({ shopIn: true }, '', location.pathname + location.search + h); PUSHES++; } route(); }
@@ -446,6 +450,7 @@
       '<h1 class="pd-name">' + esc(p.name) + '</h1>' +
       '<div class="pd-price"><b>' + money(p.price) + '</b>' + (off ? '<s>' + money(p.old_price) + '</s><span class="sv">خصم ' + off + '% · وفّر ' + money(p.old_price - p.price) + '</span>' : '') + '</div>' +
       '<span class="pd-av ' + (p.available ? 'y">✓ متوفر' : 'n">✕ غير متوفر حالياً') + '</span>' +
+      (p.pts === false ? '<div class="pd-np">المنتج ده لا يحتسب عليه نقاط ولاء</div>' : '') +
       (bdCovers(p) ? '<div class="pd-bd">🎂 <b>' + esc(BD.name) + ': ' + esc(BD.text) + '</b><br>عرض خاص بعيد ميلادك، والخصم بيتطبق تلقائي لما تطلب.' + (bdEnd() ? ' صالح لحد ' + esc(bdEnd()) + '.' : '') + '</div>' : '') +
       (colors.length ? '<div class="pd-sec"><h3>اللون: <span id="pdSelName" style="color:var(--accent,#22D3EE)">' + esc(sel || 'اختار اللون') + '</span></h3><div class="pd-sw sel">' + colors.map(function (k, i) {
         var a = availOf(p, k.n);
@@ -638,7 +643,7 @@
           '<b>' + esc(l.name || 'منتج مش متاح') + '</b>' + (l.code ? '<small>كود: <span dir="ltr">' + esc(l.code) + '</span></small>' : '') +
           ((l.color || l.variant) ? '<small>' + esc([l.color, l.variant].filter(Boolean).join(' · ')) + '</small>' : '') +
           (l.unit_price ? '<div class="pr"><b>' + money(l.unit_price) + '</b>' + (l.old_price ? '<s>' + money(l.old_price) + '</s>' : '') + '</div>' : '') +
-          (l.error ? '<span class="le">⚠️ ' + esc(l.error) + '</span>' : '') +
+          (l.error ? '<span class="le">⚠️ ' + esc(l.error) + '</span>' : (l.earn_points === false ? '<small class="np">لا يحتسب نقاط ولاء</small>' : '')) +
           '<div class="row">' + (l.error && !(l.stock > 0) ? '<span></span>' : '<div class="oqty"><button type="button" data-dq="' + i + '" data-d="-1" aria-label="أقل">−</button><span>' + l.qty + '</span><button type="button" data-dq="' + i + '" data-d="1" aria-label="أكتر">+</button></div>') +
           (l.error ? '' : '<span class="lt">' + money(l.line_total) + '</span>') + '</div>' +
           '<button type="button" class="del" data-del="' + i + '">🗑 حذف من السلة</button></div></div>';
@@ -714,7 +719,7 @@
         '<div class="pd-sec" style="margin:0"><h3>🛍️ المنتجات (' + Q.lines.reduce(function (s, l) { return s + l.qty; }, 0) + ')</h3>' + Q.lines.map(function (l) {
           return '<div class="co-it"><div class="t">' + lineImg(l) + '</div><div class="m"><b>' + esc(l.name || 'منتج مش متاح') + '</b>' +
             '<small>' + esc([l.code, l.color, l.variant].filter(Boolean).join(' · ')) + '</small>' +
-            (l.error ? '<div class="le" style="color:#F87171;font-weight:800">⚠️ ' + esc(l.error) + '</div>' : '<small>' + l.qty + ' × ' + money(l.unit_price) + (l.old_price ? ' <s>' + money(l.old_price) + '</s>' : '') + '</small>') +
+            (l.error ? '<div class="le" style="color:#F87171;font-weight:800">⚠️ ' + esc(l.error) + '</div>' : '<small>' + l.qty + ' × ' + money(l.unit_price) + (l.old_price ? ' <s>' + money(l.old_price) + '</s>' : '') + '</small>' + (l.earn_points === false ? '<small class="np">لا يحتسب نقاط ولاء</small>' : '')) +
             '</div>' + (l.error ? '' : '<span class="lt">' + money(l.line_total) + '</span>') + '</div>';
         }).join('') +
         (mode === 'now' && extra ? '<label class="co-chk" style="margin-top:10px"><input type="checkbox" id="coWith"' + (WITH_CART ? ' checked' : '') + '> ضيف منتجات السلة (' + extra + ') للطلب ده كمان</label>' : '') + '</div>' +
@@ -815,7 +820,7 @@
       row('طريقة الاستلام', x.delivery === 'delivery' ? '🚚 التوصيل إلى عنواني' : '🏪 الاستلام من الفرع') + (x.delivery !== 'delivery' && x.branch_name ? row('الفرع', esc(x.branch_name)) : '') + (x.delivery === 'delivery' && x.address ? row('العنوان', esc(x.address)) : '') + '</div>' +
       '<div class="pd-sec" style="margin:0"><h3>🛍️ المنتجات</h3>' + its.map(function (l) {
         return '<div class="co-it"><div class="t">' + (l.image ? img(l.image, '') : '📦') + '</div><div class="m"><b>' + esc(l.name) + '</b>' +
-          '<small>' + esc([l.code, l.color, l.variant].filter(Boolean).join(' · ')) + '</small><small>' + l.qty + ' × ' + money(l.unit_price) + (l.old_price ? ' <s>' + money(l.old_price) + '</s>' : '') + '</small></div>' +
+          '<small>' + esc([l.code, l.color, l.variant].filter(Boolean).join(' · ')) + '</small><small>' + l.qty + ' × ' + money(l.unit_price) + (l.old_price ? ' <s>' + money(l.old_price) + '</s>' : '') + '</small>' + (l.earn_points === false ? '<small class="np">لا يحتسب نقاط ولاء</small>' : '') + '</div>' +
           '<span class="lt">' + money(l.line_total) + '</span></div>';
       }).join('') + '</div>' +
       '<div class="pd-sec sum" style="margin:0">' + row('إجمالي المنتجات', money(x.subtotal || x.total)) +

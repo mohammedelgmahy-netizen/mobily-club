@@ -27,6 +27,11 @@
     '.sp-add input{display:none}',
     '.sp-rows .r{display:flex;gap:8px;margin-bottom:8px;align-items:center}',
     '.sp-rows .r input{min-width:0}',
+    '.sp-flags{border:1px solid var(--line);border-radius:12px;padding:6px 10px;background:#F8FAFC}',
+    '.sp-flags .r{display:flex;align-items:center;gap:8px;padding:6px 0}',
+    '.sp-flags .r+.r{border-top:1px dashed var(--line)}',
+    '.sp-flags .r span{flex:1;font-weight:700;font-size:13.5px}',
+    '.sp-flags .r select{flex:0 0 auto;width:auto;min-width:120px;margin:0}',
     '.sp-rows .r .x{flex:0 0 auto;width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:#fff;color:#DC2626;font-size:18px;cursor:pointer}',
     '.sp-rows .r input[type=color]{flex:0 0 46px;width:46px;height:42px;padding:3px}',
     '.sp-pricebox{background:#F8FAFC;border:1px solid var(--line);border-radius:14px;padding:4px 12px 12px}',
@@ -121,6 +126,17 @@
   window.__spImgErr = function (el) { var f = document.createElement('span'); f.className = 'imgfail'; f.innerHTML = '📷<small>الصورة مش متاحة</small>'; el.replaceWith(f); };
   function catName(id) { var c = SD.categories.filter(function (x) { return x.id === id; })[0]; return c ? c.name : 'بدون قسم'; }
   function pct(price, old) { return old > price && old > 0 ? Math.round((1 - price / old) * 100) : 0; }
+  /* النقاط والعروض: القسم نعم/لا، المنتج حسب القسم/نعم/لا (إعداد المنتج ليه الأولوية) */
+  var FLAGS = [['earn_points', 'احتساب نقاط الولاء'], ['allow_general_offers', 'السماح بالعروض العامة'], ['allow_special_offers', 'السماح بالعروض الخاصة']];
+  function flagBox(pre, obj, forProduct, cat) {
+    return '<label>النقاط والعروض <span class="muted small">' + (forProduct ? '(إعداد المنتج ليه الأولوية على إعداد القسم)' : '(لكل منتجات القسم، إلا المنتج اللي ليه إعداد خاص)') + '</span></label><div class="sp-flags">' + FLAGS.map(function (f) {
+      var v = obj[f[0]], cv = cat ? cat[f[0]] !== false : true;
+      var opts = forProduct ? [['', 'حسب القسم (' + (cv ? 'نعم' : 'لا') + ')'], ['yes', 'نعم'], ['no', 'لا']] : [['yes', 'نعم'], ['no', 'لا']];
+      var cur = v === true ? 'yes' : v === false ? 'no' : forProduct ? '' : 'yes';
+      return '<div class="r"><span>' + f[1] + '</span><select id="' + pre + f[0] + '" data-fl="' + f[0] + '">' + opts.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
+    }).join('') + '</div><p class="small muted" style="margin:4px 0 0">العروض العامة = كود خصم أو عرض على كل المنتجات. العروض الخاصة = كود خصم أو عرض محدد لمنتجات أو أقسام بعينها. النقاط والعروض منفصلين: إيقاف واحد مش بيأثر على التاني.</p>';
+  }
+  function flagVals(pre) { var o = {}; FLAGS.forEach(function (f) { var v = $('#' + pre + f[0]).value; o[f[0]] = v === 'yes' ? true : v === 'no' ? false : null; }); return o; }
   function numVal(el) { var v = String(el.value || '').replace(/[٠-٩]/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); }).replace(/,/g, '').trim(); return v === '' ? 0 : Number(v); }
 
   window.viewProducts = function (v) {
@@ -277,6 +293,7 @@
       '<label>حد التنبيه لما المخزون يقل <span class="muted small">(لما المتاح يوصل للرقم ده أو أقل بيظهر «مخزون منخفض»)</span></label><input id="pfLow" inputmode="numeric" value="' + esc(p.low_stock === undefined || p.low_stock === null ? 3 : p.low_stock) + '" style="max-width:140px">' +
       (isNew ? '<p class="small muted" style="margin:6px 0 0">بعد الحفظ، دخّل الرصيد من تبويب «📦 المخزون» (المنتج من غير رصيد بيظهر للعميل «غير متوفر»).</p>' : '') +
       '<label>اختيارات تانية <span class="muted small">(مثلاً المساحة: 128GB، 256GB — افصل بينهم بفاصلة)</span></label><input id="pfVar" value="' + esc((p.variants || []).join('، ')) + '">' +
+      '<div id="pfFlags">' + flagBox('pf_', p, true, SD.categories.filter(function (c) { return c.id === p.category_id; })[0]) + '</div>' +
       '<div id="pfErr"></div><div class="row" style="margin-top:14px"><button class="btn" id="pfSave" type="button">حفظ المنتج</button>' +
       (isNew ? '' : '<button class="btn ghost" id="pfDel" type="button" style="flex:0 0 auto;color:#DC2626">مسح</button>') + '</div>', true);
 
@@ -348,6 +365,7 @@
     };
     $('#pfPct').value = pct(Number(p.price), Number(p.old_price)) || '';
     prev(); drawImgs(); drawSpecs(); drawColors();
+    $('#pfCat').onchange = function () { var cur = flagVals('pf_'), c = SD.categories.filter(function (x) { return x.id === $('#pfCat').value; })[0]; $('#pfFlags').innerHTML = flagBox('pf_', cur, true, c); };
     $('#pfSpecAdd').onclick = function () { SP.push(['', '']); drawSpecs(); var a = $all('[data-sk]', body); a[a.length - 1].focus(); };
     $('#pfColAdd').onclick = function () { CO.push({ n: '', c: '#000000', im: [] }); drawColors(); var a = $all('[data-cn]', body); a[a.length - 1].focus(); };
     $('#pfSave').onclick = function () {
@@ -359,6 +377,7 @@
         variants: $('#pfVar').value.split(/[,،\n]/).map(function (s) { return s.trim(); }).filter(Boolean),
         low_stock: $('#pfLow').value.trim() === '' ? 3 : numVal($('#pfLow'))
       };
+      Object.assign(payload, flagVals('pf_'));
       if (!String(payload.name).trim()) { $('#pfErr').innerHTML = '<div class="err">اكتب اسم المنتج</div>'; return; }
       if (!$('#pfPrice').value.trim() || isNaN(payload.price)) { $('#pfErr').innerHTML = '<div class="err">اكتب سعر البيع</div>'; return; }
       busy(btn, true);
@@ -408,6 +427,7 @@
       '<label>أيقونة (إيموجي)</label><input id="cfIcon" value="' + esc(c.icon) + '" placeholder="مثلاً 📱" maxlength="16" style="font-size:22px">' +
       '<label>أو صورة للقسم <span class="muted small">(لو حطيت صورة بتظهر بدل الأيقونة)</span></label><div class="sp-imgs" id="cfImg"></div>' +
       '<label class="check"><input type="checkbox" id="cfVis"' + (c.hidden ? '' : ' checked') + '><span>ظاهر للعملاء</span></label>' +
+      flagBox('cf_', c, false) +
       '<div id="cfErr"></div><div class="row" style="margin-top:10px"><button class="btn" id="cfSave" type="button">حفظ القسم</button>' +
       (isNew ? '' : '<button class="btn ghost" id="cfDel" type="button" style="flex:0 0 auto;color:#DC2626">مسح</button>') + '</div>');
     function drawImg() {
@@ -424,7 +444,7 @@
     drawImg();
     $('#cfSave').onclick = function () {
       var btn = this; busy(btn, true); $('#cfErr').innerHTML = '';
-      sh('saveCategory', { id: c.id || '', name: $('#cfName').value, icon: $('#cfIcon').value, image: IMG, hidden: !$('#cfVis').checked })
+      sh('saveCategory', Object.assign({ id: c.id || '', name: $('#cfName').value, icon: $('#cfIcon').value, image: IMG, hidden: !$('#cfVis').checked }, flagVals('cf_')))
         .then(function () { closeModal(); toast('تم حفظ القسم ✓'); return reload(); })
         .catch(function (e) { $('#cfErr').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; }).then(function () { busy(btn, false); });
     };
@@ -543,13 +563,13 @@
       '<h3 style="margin:14px 0 4px">المنتجات</h3><div class="so-its">' + o.items.map(function (l) {
         return '<div class="it"><div class="th">' + (l.image ? img(l.image) : '📦') + '</div><div class="m"><b>' + esc(l.name) + '</b>' +
           '<small>' + (l.code ? '<span class="sp-code">' + esc(l.code) + '</span> ' : '') + esc([l.color, l.variant].filter(Boolean).join(' · ')) + '</small><br><small>' + l.qty + ' × ' + money(l.unit_price) +
-          (l.old_price ? ' (بدل ' + money(l.old_price) + ')' : '') + '</small></div><span class="lt">' + money(l.line_total) + '</span></div>';
+          (l.old_price ? ' (بدل ' + money(l.old_price) + ')' : '') + '</small>' + (l.earn_points === false ? '<br><small style="color:#B45309">لا يحتسب نقاط ولاء</small>' : '') + '</div><span class="lt">' + money(l.line_total) + '</span></div>';
       }).join('') + '</div>' +
       '<div class="so-det">' + r('إجمالي المنتجات', money(o.subtotal)) + (o.product_discount > 0 ? r('خصم المنتجات', '− ' + money(o.product_discount)) : '') +
       r('كود الخصم', o.promo_code ? '<span class="so-promo">' + esc(o.promo_code) + '</span> − ' + money(o.promo_discount) : '—') +
       (o.birthday_discount > 0 ? r('🎂 ' + esc(o.birthday_name || 'عرض عيد الميلاد'), '− ' + money(o.birthday_discount)) : '') +
       (disc > 0 ? r('إجمالي الخصومات', '− ' + money(disc)) : '') + (o.delivery === 'delivery' ? r('مصاريف الشحن', money(o.shipping)) : '') +
-      r('الإجمالي النهائي', '<b>' + money(o.total) + '</b>') + r('ملاحظات العميل', o.notes ? esc(o.notes) : '—') + '</div>' +
+      r('الإجمالي النهائي', '<b>' + money(o.total) + '</b>') + (o.points_amount !== null && o.points_amount !== undefined && o.points_amount < Number(o.total) - Number(o.shipping || 0) ? r('المبلغ المحسوب عليه النقاط', money(o.points_amount)) : '') + r('ملاحظات العميل', o.notes ? esc(o.notes) : '—') + '</div>' +
       '<div class="so-acts"><a class="btn wa" target="_blank" rel="noopener" href="https://wa.me/' + esc(waNum(o.customer_phone)) + '?text=' + encodeURIComponent(msg) + '" style="background:#25D366;color:#062612">💬 واتساب العميل</a>' +
       '<a class="btn ghost" href="tel:' + esc(o.customer_phone) + '">📞 اتصال</a></div>' +
       '<h3 style="margin:16px 0 4px">ملاحظات داخلية <small style="color:#5B6683;font-weight:600">(مش بتظهر للعميل)</small></h3><textarea id="soNotes" rows="2" maxlength="1000">' + esc(o.admin_notes || '') + '</textarea>' +
@@ -698,7 +718,7 @@
       }).join('') + '</div><label>المنتجات</label><input id="pmPQ" placeholder="🔍 ابحث باسم المنتج أو الكود" style="margin-bottom:6px"><div class="pm-pick" id="pmProds">' + SD.products.map(function (x) {
         return '<label data-pn="' + esc((x.name + ' ' + (x.code || '')).toLowerCase()) + '"><input type="checkbox" data-pid="' + esc(x.id) + '"' + (PIDS.indexOf(x.id) >= 0 ? ' checked' : '') + '>' + esc(x.name) + (x.code ? ' <span class="sp-code">' + esc(x.code) + '</span>' : '') + '</label>';
       }).join('') + (SD.products.length ? '' : '<div class="small muted">مفيش منتجات لسه</div>') + '</div></div>' +
-      '<label class="sp-tg" style="margin-top:14px;font-size:13.5px;color:#0B1222"><input type="checkbox" id="pmStack"' + (p.stackable ? ' checked' : '') + '> ينفع يتجمع مع خصومات المنتجات (المنتجات اللي عليها خصم)</label>' +
+      '<label class="sp-tg" style="margin-top:14px;font-size:13.5px;color:#0B1222"><input type="checkbox" id="pmStack"' + (p.stackable ? ' checked' : '') + '> ينفع يتجمع مع خصومات المنتجات (المنتجات اللي عليها خصم) ومع عرض عيد الميلاد</label>' +
       '<label class="sp-tg" style="margin-top:10px;font-size:13.5px;color:#0B1222"><input type="checkbox" id="pmAct"' + (p.active ? ' checked' : '') + '> الكود مفعّل</label>' +
       '<div id="pmErr"></div><div style="height:12px"></div><button type="button" class="btn" id="pmSave">حفظ</button>', true);
     function kind() { $('#pmMaxW').style.visibility = $('#pmKind').value === 'percent' ? '' : 'hidden'; }
