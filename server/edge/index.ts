@@ -7,6 +7,7 @@ import { Buffer } from 'node:buffer';
 import { handle } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@60676d4ea04d45d2534faa91fcf306007cf655a7/server/bundle.js';
 import { handleShop, periodic, afterCore } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@33329f972f7aa8a6954a4ec5387ae378b93023bc/server/shop.js';
 import { handleRequests } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@3622f5e990a5fe07c9c0752442b857a1e6e9de8f/server/requests.js';
+import { handleGeo } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@00cf9b129103d01d6d69583be7a0caa4123952d7/server/geo.js';
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2, idle_timeout: 60 });
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -71,6 +72,7 @@ Deno.serve(async (req: Request) => {
       }));
     }
     if (fn === 'requests') return json(await handleRequests(body, { sql, verifyAdmin }));
+    if (fn === 'geo' || fn === 'geoAdmin') return json(await handleGeo(body, { sql, verifyAdmin }));
     const out = await core(body);
     await afterCore(body, out, sql); // عميل جديد ← نقاط الترحيب فوراً
     return json(out);
