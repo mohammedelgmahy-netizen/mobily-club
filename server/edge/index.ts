@@ -112,6 +112,22 @@ function blockedWhenInactive(fn: string, action: string) {
   return '';
 }
 
+// روابط الكروت لازم تحمل كود المحل (?t=...&s=code)، وإلا هتفتح على محل تاني
+const TOKEN_LINK = /\?t=([a-f0-9]{64})/g;
+function withShop(value: unknown, code: string): unknown {
+  if (typeof value === 'string') {
+    if (value.indexOf('?t=') < 0) return value;
+    return value.replace(TOKEN_LINK, (m: string, t: string) => `?t=${t}&s=${code}`).replace(new RegExp(`&s=${code}&s=${code}`, 'g'), `&s=${code}`);
+  }
+  if (Array.isArray(value)) return value.map((v) => withShop(v, code));
+  if (value && typeof value === 'object') {
+    const o: any = {};
+    for (const k of Object.keys(value as any)) o[k] = withShop((value as any)[k], code);
+    return o;
+  }
+  return value;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return new Response('MOBILY CLUB API', { headers: CORS });
@@ -146,16 +162,18 @@ Deno.serve(async (req: Request) => {
     const schema = tenant.schema_name;
     const tsql = scopedSql(sql, schema);
     const core = coreFor(schema);
+    // الرد بيخرج ومعاه كود المحل في روابط الكروت
+    const reply = (o: unknown) => json(tenant.code === 'mobily' ? o : withShop(o, tenant.code));
 
     if (fn === 'shop' || fn === 'shopAdmin') {
-      return json(await handleShop(body, {
+      return reply(await handleShop(body, {
         sql: tsql, verifyAdmin: verifyAdminIn(schema), core,
         upload: (d: string) => storeImage(d, 'mc-products', 'product', 'تعذر رفع الصورة، حاول مرة أخرى'),
       }));
     }
-    if (fn === 'rewards' || fn === 'rewardsAdmin') return json(await handleRewards(body, { sql: tsql, verifyAdmin: verifyAdminIn(schema), core }));
-    if (fn === 'requests') return json(await handleRequests(body, { sql: tsql, verifyAdmin: verifyAdminIn(schema) }));
-    if (fn === 'geo' || fn === 'geoAdmin') return json(await handleGeo(body, { sql: tsql, verifyAdmin: verifyAdminIn(schema) }));
+    if (fn === 'rewards' || fn === 'rewardsAdmin') return reply(await handleRewards(body, { sql: tsql, verifyAdmin: verifyAdminIn(schema), core }));
+    if (fn === 'requests') return reply(await handleRequests(body, { sql: tsql, verifyAdmin: verifyAdminIn(schema) }));
+    if (fn === 'geo' || fn === 'geoAdmin') return reply(await handleGeo(body, { sql: tsql, verifyAdmin: verifyAdminIn(schema) }));
     const out = await core(body);
     await afterCore(body, out, tsql); // عميل جديد ← نقاط الترحيب فوراً
     // اللون الأساسي للمحل (إعداد زيادة مش موجود في بيانات الصفحة الأساسية)
@@ -165,7 +183,7 @@ Deno.serve(async (req: Request) => {
         if (c && c.value) (out as any).result.boot.settings.brand_color = c.value;
       } catch (e) { /* إعداد مش موجود */ }
     }
-    return json(out);
+    return reply(out);
   } catch (e) {
     console.error(e);
     return json({ error: 'حدث خطأ في الخادم، حاول مرة أخرى' }, 500);
