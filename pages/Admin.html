@@ -407,9 +407,19 @@ var TYPE_AR = { EARN: 'نقاط شراء', REDEEM: 'استبدال', ADJUST_ADD:
 var OFFER_STATUS = { live: ['ساري', 'green'], scheduled: ['مجدول', 'gold'], ended: ['منتهي', 'gray'], stopped: ['موقوف', 'red'] };
 
 function rid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
+// الضغط مرتين بالغلط على نفس الزر = نفس رقم الطلب، فالسيرفر بينفذه مرة واحدة بس
+var RID_SEEN = {};
+function ridFor(action, payload) {
+  var k = action + '|' + JSON.stringify(payload || {});
+  var now = Date.now(), p = RID_SEEN[k];
+  if (p && now - p.t < 90000) return p.id;
+  for (var x in RID_SEEN) { if (now - RID_SEEN[x].t > 90000) delete RID_SEEN[x]; }
+  RID_SEEN[k] = { t: now, id: rid() };
+  return RID_SEEN[k].id;
+}
 
 function call(action, payload, isWrite) {
-  return api('adminApi', SESSION, action, payload || {}, isWrite ? rid() : '').catch(function (e) {
+  return api('adminApi', SESSION, action, payload || {}, isWrite ? ridFor(action, payload) : '').catch(function (e) {
     if (e.code === 'SESSION_EXPIRED' || e.message === 'SESSION_EXPIRED') { SESSION = ''; store('mc_admin_sess', null); showLogin('انتهت الجلسة، سجّل الدخول مرة أخرى'); throw new Error('انتهت الجلسة'); }
     throw e;
   });
