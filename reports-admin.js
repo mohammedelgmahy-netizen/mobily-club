@@ -310,6 +310,10 @@
   };
 
   /* ---------------- Backup & Restore (Owner) ---------------- */
+  var WIPE = [
+    ['orders', 'الطلبات', 'طلبات الأونلاين وسجلها والإشعارات'], ['sales', 'المبيعات والفواتير', 'الفواتير والاستبدالات ومشتريات العملاء'],
+    ['points', 'نقاط العملاء', 'حركة النقاط والأرصدة ترجع صفر'], ['customers', 'العملاء', 'العملاء ونقاطهم وأعياد ميلادهم وواتساب'], ['activity', 'سجل العمليات', '']
+  ];
   window.viewBackup = function (v) {
     if (!isOwner()) { v.innerHTML = '<div class="err">النسخ الاحتياطي لصاحب المحل بس</div>'; return; }
     v.innerHTML = '<div class="card"><h2>🛡️ Backup & Restore</h2><p class="small muted" style="margin-top:-4px">نسخة كاملة من كل بيانات النظام: العملاء، المنتجات والأقسام، الطلبات، الفواتير، النقاط، العروض وأكواد الخصم، الإعدادات، والموظفين. اعمل نسخة قبل أي تحديث كبير.</p>' +
@@ -319,13 +323,18 @@
       '<div class="small muted" style="margin-top:6px">الملف بيتنزل على جهازك (JSON) وفيه بصمة (checksum) بتتأكد إن الملف ما اتغيّرش. احتفظ بيه في مكان آمن، لأنه فيه كل بيانات المحل. صور المنتجات والعروض متخزنة على السيرفر والنسخة فيها روابطها.</div></div>' +
       '<div class="card" style="margin-top:12px"><h2>📋 النسخ السابقة</h2><div id="bkHist"></div></div>' +
       '<div class="card" style="margin-top:12px"><h2>♻️ Restore – استرجاع نسخة</h2><p class="small muted" style="margin-top:-4px">اختار ملف Backup سابق. هنعرضلك محتوياته ونفحصه الأول، ومفيش أي استبدال بيحصل غير بعد تأكيدك.</p>' +
-      '<input type="file" id="bkFile" accept=".json,application/json"><div id="bkRs" style="margin-top:10px"></div></div>';
+      '<input type="file" id="bkFile" accept=".json,application/json"><div id="bkRs" style="margin-top:10px"></div></div>' +
+      '<div class="card" style="margin-top:12px"><h2>🗑️ مسح البيانات الموجودة</h2><p class="small muted" style="margin-top:-4px">اختار البيانات اللي عايز تمسحها. المنتجات والأقسام والعروض وأكواد الخصم والمكافآت والإعدادات والموظفين مش بتتمسح.</p>' +
+      '<div class="ex-sets" id="wpSets">' + WIPE.map(function (x) { return '<label><input type="checkbox" value="' + x[0] + '"><span>' + esc(x[1]) + '</span><small>' + esc(x[2]) + '</small></label>'; }).join('') + '</div>' +
+      '<div class="bk-warn">⚠️ المسح نهائي ومينفعش يرجع غير من نسخة احتياطية. اعمل Backup الأول من فوق.</div>' +
+      '<label style="margin-top:10px">للتأكيد اكتب كلمة: مسح</label><input id="wpConf" autocomplete="off">' +
+      '<button class="btn danger" type="button" id="wpGo" style="margin-top:8px;width:100%" disabled>🗑️ مسح البيانات المختارة</button><div id="wpMsg" style="margin-top:8px"></div></div>';
     var info = function () {
       sh('backupInfo').then(function (rows) {
         var last = rows.filter(function (x) { return x.kind === 'backup'; })[0];
         $('#bkInfo').innerHTML = '<div><small>آخر Backup</small><b>' + (last ? d(last.created_at, 1) : 'لسه مفيش') + '</b></div><div><small>حجمها</small><b>' + (last ? sizeTxt(last.size_bytes) : '—') + '</b></div>';
         $('#bkHist').innerHTML = rows.length ? '<div class="tblwrap"><table class="tbl"><tr><th>التاريخ</th><th>النوع</th><th>بواسطة</th><th>الحجم</th><th>السجلات</th><th>ملاحظة</th></tr>' + rows.map(function (x) {
-          return '<tr><td>' + d(x.created_at, 1) + '</td><td>' + (x.kind === 'restore' ? badge('استرجاع', 'red') : badge('Backup', 'green')) + '</td><td>' + esc(x.created_by) + '</td><td>' + (x.kind === 'backup' ? sizeTxt(x.size_bytes) : '—') + '</td><td>' + fmtNum(x.rows_count) + ' في ' + fmtNum(x.tables_count) + ' جدول</td><td>' + esc(x.note || '') + '</td></tr>';
+          return '<tr><td>' + d(x.created_at, 1) + '</td><td>' + (x.kind === 'restore' ? badge('استرجاع', 'red') : x.kind === 'wipe' ? badge('مسح', 'red') : badge('Backup', 'green')) + '</td><td>' + esc(x.created_by) + '</td><td>' + (x.kind === 'backup' ? sizeTxt(x.size_bytes) : '—') + '</td><td>' + (x.kind === 'wipe' ? '—' : fmtNum(x.rows_count) + ' في ' + fmtNum(x.tables_count) + ' جدول') + '</td><td>' + esc(x.note || '') + '</td></tr>';
         }).join('') + '</table></div>' : '<div class="empty">لسه ما اتعملش أي Backup</div>';
       }).catch(function (e) { $('#bkHist').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
     };
@@ -376,6 +385,19 @@
       };
       rd.onerror = function () { box.innerHTML = '<div class="bk-warn">تعذر قراءة الملف</div>'; };
       rd.readAsText(file);
+    };
+    var wpSel = function () { return $all('#wpSets input').filter(function (i) { return i.checked; }).map(function (i) { return i.value; }); };
+    var wpCheck = function () { $('#wpGo').disabled = !(wpSel().length && $('#wpConf').value.trim() === 'مسح'); };
+    $('#wpConf').oninput = wpCheck; $all('#wpSets input').forEach(function (i) { i.onchange = wpCheck; });
+    $('#wpGo').onclick = function () {
+      var sets = wpSel(), names = WIPE.filter(function (x) { return sets.indexOf(x[0]) >= 0; }).map(function (x) { return x[1]; }).join('، ');
+      if (!window.confirm('متأكد؟ هيتمسح نهائياً: ' + names)) return;
+      var b = this; busy(b, true);
+      sh('wipeData', { sets: sets, confirm: $('#wpConf').value.trim() }).then(function () {
+        $('#wpMsg').innerHTML = '<div class="bk-ok">✓ اتمسح: ' + esc(names) + '</div>';
+        $('#wpConf').value = ''; $all('#wpSets input').forEach(function (i) { i.checked = false; });
+        toast('تم المسح ✓'); info();
+      }).catch(function (e) { toast(e.message, true); }).then(function () { busy(b, false); wpCheck(); });
     };
     info();
   };

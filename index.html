@@ -30,7 +30,7 @@ window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); 
       : 'تعذر الاتصال بالسيرفر';
     document.getElementById('m').innerHTML = msg + ' ثم <a href="" style="color:#22D3EE">أعد المحاولة</a>';
   }
-  var V = {"Register":"5f9402dfc6","Card":"777455abea","Unsub":"175c40fd01","Message":"ddd64acd3c","Admin":"e26a78cec8","Signup":"f361907e9c","Shops":"355e17c0c6"};
+  var V = {"Register":"5f9402dfc6","Card":"777455abea","Unsub":"175c40fd01","Message":"ddd64acd3c","Admin":"f2f37d8a55","Signup":"f361907e9c","Shops":"355e17c0c6"};
   var getPage = function(n){ return fetch(base.replace(/[^/]*$/, '') + 'pages/' + n + '.html?v=' + V[n]).then(function(r){ if (!r.ok) throw new Error('page'); return r.text(); }); };
   var guess = params.p === 'admin' ? 'Admin' : params.p === 'unsub' ? 'Unsub' : params.t ? 'Card' : 'Register';
   var early = getPage(guess); early.catch(function(){});
