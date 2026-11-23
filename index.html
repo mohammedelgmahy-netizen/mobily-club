@@ -21,18 +21,29 @@ window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); 
   var FN = "https://lhamdnaxioxqptkylvkg.supabase.co/functions/v1/mobily?forceFunctionRegion=ap-south-1";
   var params = {}; new URLSearchParams(location.search).forEach(function(v,k){ params[k]=v; });
   var base = location.href.split('#')[0].split('?')[0];
+  // كود المحل من اللينك (?s=code) — من غيره بيفتح محل موبايلي زي ما كان
+  window.MC_SHOP = String(params.s || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
   function fail(){ document.getElementById('m').innerHTML = 'تعذر الاتصال. تأكد من الإنترنت ثم <a href="" style="color:#22D3EE">أعد المحاولة</a>'; }
-  var V = {"Register":"375c7dab69","Card":"832d51cdf4","Unsub":"463c3be20d","Message":"4a901c5b01","Admin":"02c04f6690"};
+  var V = {"Register":"375c7dab69","Card":"832d51cdf4","Unsub":"463c3be20d","Message":"4a901c5b01","Admin":"02c04f6690","Signup":"897e177177","Shops":"3e275f6a85"};
   var getPage = function(n){ return fetch(base.replace(/[^/]*$/, '') + 'pages/' + n + '.html?v=' + V[n]).then(function(r){ if (!r.ok) throw new Error('page'); return r.text(); }); };
   var guess = params.p === 'admin' ? 'Admin' : params.p === 'unsub' ? 'Unsub' : params.t ? 'Card' : 'Register';
   var early = getPage(guess); early.catch(function(){});
   window.MC_FUNCTION_URL = FN;
   window.__mcPost = function(body){
   var url = window.MC_FUNCTION_URL;
+  if (window.MC_SHOP && body && body.charAt(0) === '{' && body.indexOf('"shop"') < 0)
+    body = '{"shop":"' + window.MC_SHOP + '"' + (body.length > 2 ? ',' + body.slice(1) : '}');
   var send = function(ct){ var c = window.AbortController ? new AbortController() : null; var t = c ? setTimeout(function(){ c.abort(); }, window.__mcTimeout || (body.length > 200000 ? 120000 : 30000)) : 0; return fetch(url, { method: 'POST', headers: {'Content-Type': ct}, body: body, signal: c ? c.signal : undefined }).then(function(r){ clearTimeout(t); if (r.status >= 400 && r.status !== 500) throw new Error('ct'); return r.json(); }, function(e){ clearTimeout(t); throw e; }); };
   if (window.__mcJson) return send('application/json');
   return send('text/plain;charset=UTF-8').catch(function(e){ if (e && e.name === 'AbortError') throw e; window.__mcJson = true; return send('application/json'); });
 };
+  // صفحات طبقة المحلات: فتح محل جديد (?p=new) وصفحة المحلات لصاحب البرنامج (?p=shops)
+  if (params.p === 'new' || params.p === 'shops') {
+    getPage(params.p === 'new' ? 'Signup' : 'Shops').then(function(html){
+      document.open(); document.write(html); document.close();
+    }).catch(fail);
+    return;
+  }
   window.__mcPost(JSON.stringify({ fn: 'page', args: [params] }))
     .then(function(j){
       if (!j.result) return fail();

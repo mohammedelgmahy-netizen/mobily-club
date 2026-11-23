@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#060A14">
+<title>افتح برنامج ولاء لمحلك</title>
+<link rel="icon" type="image/png" href="../icon-192.png">
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(120% 60% at 80% 0,#2a1f4d 0,#0b1020 55%,#070a14 100%);color:#e8ecf5;font-family:system-ui,Tahoma,sans-serif;padding:22px 18px 60px}
+.wrap{max-width:430px;margin:0 auto}
+.logo{display:block;width:140px;margin:6px auto 0;border-radius:22px}
+.tag{display:inline-block;background:#0d3440;color:#38d3f0;font-weight:700;font-size:13px;padding:5px 14px;border-radius:20px;margin-top:18px}
+h1{font-size:26px;font-weight:800;margin:10px 0 6px}
+p.sub{color:#9aa3bb;font-size:15px;line-height:1.7;margin:0}
+.card{background:#0f1424;border:1px solid #232a40;border-radius:20px;padding:18px;margin-top:18px}
+label{display:block;font-weight:700;font-size:15px;margin:12px 0 7px}
+input{width:100%;border:1px solid #2a3150;border-radius:13px;padding:13px 14px;color:#e8ecf5;font-size:15px;background:#0b0f1c;font-family:inherit}
+input:focus{outline:none;border-color:#38d3f0}
+input.ltr{direction:ltr;text-align:right}
+.hint{color:#7e87a0;font-size:12.5px;margin-top:6px;line-height:1.6}
+.hint b{color:#38d3f0;font-weight:700}
+button{width:100%;margin-top:20px;background:linear-gradient(90deg,#22c3e6,#6d5cf6);color:#fff;font-weight:800;padding:14px;border:0;border-radius:14px;font-size:17px;font-family:inherit;cursor:pointer}
+button[disabled]{opacity:.6}
+.err{background:#3d1520;color:#ff9aa8;border-radius:12px;padding:11px 13px;font-size:14px;margin-top:14px;display:none;line-height:1.6}
+.ok{display:none}
+.big{text-align:center;font-size:52px;margin:10px 0}
+.lnk{direction:ltr;text-align:left;background:#0b0f1c;border:1px dashed #38d3f0;border-radius:11px;padding:11px;font-size:13px;color:#38d3f0;margin-top:6px;word-break:break-all}
+.pw{background:#0b0f1c;border:1px solid #2a3150;border-radius:11px;padding:11px;font-size:16px;margin-top:6px;direction:ltr;text-align:left;font-weight:800;letter-spacing:1px}
+.warn{background:#3d300f;color:#f5c542;border-radius:12px;padding:11px 13px;font-size:13.5px;margin-top:14px;line-height:1.7}
+a.btn{display:block;text-align:center;text-decoration:none;margin-top:12px;background:#0f1424;border:1px solid #38d3f0;color:#38d3f0;font-weight:800;padding:13px;border-radius:14px}
+</style>
+</head><body><div class="wrap">
+<img class="logo" src="../share-logo.png" alt="">
+
+<div id="form">
+  <span class="tag">لأصحاب المحلات</span>
+  <h1>افتح برنامج ولاء لمحلك</h1>
+  <p class="sub">سجّل محلك في دقيقة، وابدأ تجمّع نقاط لعملائك. بيانات محلك منفصلة تماماً عن أي محل تاني.</p>
+  <div class="card">
+    <label>اسم المحل</label>
+    <input id="name" maxlength="80" placeholder="مثلاً: محل النور للموبايلات" autocomplete="organization">
+    <label>كود المحل (بيظهر في لينك عملائك)</label>
+    <input id="code" class="ltr" maxlength="20" placeholder="elnour" autocomplete="off">
+    <div class="hint" id="codeHint">حروف إنجليزي صغيرة وأرقام وشرطة بس.</div>
+    <label>الإيميل</label>
+    <input id="email" class="ltr" type="email" maxlength="120" placeholder="name@example.com" autocomplete="email">
+    <label>رقم الموبايل (اختياري)</label>
+    <input id="phone" class="ltr" maxlength="20" placeholder="01XXXXXXXXX" autocomplete="tel">
+    <button id="go">افتح المحل</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<div id="done" class="ok">
+  <div class="big">✅</div>
+  <h1 style="text-align:center" id="shopName"></h1>
+  <p class="sub" style="text-align:center">محلك اتعمل وجاهز. احفظ البيانات دي دلوقتي.</p>
+  <div class="card">
+    <label>لينك عملاءك</label>
+    <div class="lnk" id="cl"></div>
+    <label>لينك دخول الإدارة</label>
+    <div class="lnk" id="al"></div>
+    <label>اسم المستخدم</label>
+    <div class="pw" id="us"></div>
+    <label>كلمة المرور المؤقتة</label>
+    <div class="pw" id="pw"></div>
+    <div class="warn">صوّر الشاشة دي أو احفظ الكلمتين. هيطلب منك تغيير كلمة المرور أول ما تدخل، وبعدها مش هتظهر تاني.</div>
+    <a class="btn" id="goAdmin" href="#">ادخل لوحة الإدارة</a>
+  </div>
+  <div class="card" id="trialBox" style="display:none">
+    <div class="hint" style="font-size:14px" id="trialTxt"></div>
+  </div>
+</div>
+
+</div>
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var post = function(body){ return window.__mcPost(JSON.stringify(body)); };
+  var codeTouched = false;
+  $('code').addEventListener('input', function(){ codeTouched = true; this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g,''); });
+  $('name').addEventListener('input', function(){
+    if (codeTouched) return;
+    var v = this.value.toLowerCase().replace(/[^a-z0-9 -]/g,'').trim().replace(/\s+/g,'-').slice(0,20);
+    $('code').value = v;
+  });
+  function show(msg){ var e = $('err'); e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
+  $('go').addEventListener('click', function(){
+    var name = $('name').value.trim(), code = $('code').value.trim(), email = $('email').value.trim(), phone = $('phone').value.trim();
+    if (!name) return show('اكتب اسم المحل');
+    if (code.length < 3) return show('كود المحل: من 3 إلى 20 حرف إنجليزي صغير أو رقم');
+    if (!email) return show('اكتب الإيميل');
+    show('');
+    $('go').disabled = true; $('go').textContent = 'بنفتح المحل…';
+    post({ fn:'saas', args:['signup', { name:name, code:code, email:email, phone:phone }] }).then(function(j){
+      var r = j && j.result;
+      if (!r || !r.ok) { $('go').disabled = false; $('go').textContent = 'افتح المحل'; return show((r && r.error) || 'حصل خطأ، حاول تاني'); }
+      var d = r.data;
+      $('form').style.display = 'none';
+      $('done').style.display = 'block';
+      $('shopName').textContent = d.name;
+      $('cl').textContent = d.customerLink;
+      $('al').textContent = d.adminLink;
+      $('us').textContent = d.username;
+      $('pw').textContent = d.password || '—';
+      $('goAdmin').href = d.adminLink;
+      if (d.trial_ends) { $('trialBox').style.display = 'block'; $('trialTxt').textContent = 'فترة التجربة لحد ' + d.trial_ends + '. بعدها الإدارة بتقف لحد ما تشترك، وبيانات محلك بتفضل محفوظة زي ما هي.'; }
+      window.scrollTo(0,0);
+    }).catch(function(){ $('go').disabled = false; $('go').textContent = 'افتح المحل'; show('تعذر الاتصال، جرب تاني'); });
+  });
+})();
+</script></body></html>

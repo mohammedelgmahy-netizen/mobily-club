@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#060A14">
+<title>المحلات المشتركة</title>
+<link rel="icon" type="image/png" href="../icon-192.png">
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(120% 60% at 80% 0,#2a1f4d 0,#0b1020 55%,#070a14 100%);color:#e8ecf5;font-family:system-ui,Tahoma,sans-serif;padding:22px 16px 60px}
+.wrap{max-width:460px;margin:0 auto}
+h1{font-size:23px;font-weight:800;margin:14px 0 6px}
+p.sub{color:#9aa3bb;font-size:14.5px;line-height:1.7;margin:0}
+.card{background:#0f1424;border:1px solid #232a40;border-radius:20px;padding:16px;margin-top:16px}
+label{display:block;font-weight:700;font-size:14.5px;margin:12px 0 7px}
+input{width:100%;border:1px solid #2a3150;border-radius:13px;padding:12px 13px;color:#e8ecf5;font-size:15px;background:#0b0f1c;font-family:inherit}
+input:focus{outline:none;border-color:#38d3f0}
+input.ltr{direction:ltr;text-align:right}
+button{background:linear-gradient(90deg,#22c3e6,#6d5cf6);color:#fff;font-weight:800;padding:13px;border:0;border-radius:13px;font-size:16px;font-family:inherit;cursor:pointer;width:100%;margin-top:16px}
+.row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:13px 0;border-bottom:1px solid #1e2539}
+.row:last-child{border:0}
+.nm{font-weight:800;font-size:16px}
+.meta{color:#7e87a0;font-size:12.5px;margin-top:3px;line-height:1.6}
+.pill{font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:12px;white-space:nowrap}
+.ok{background:#0f3b2a;color:#3ddc97}.wait{background:#3d300f;color:#f5c542}.off{background:#3d1520;color:#ff6b81}
+.acts{margin-top:9px;display:flex;flex-wrap:wrap;gap:8px}
+.acts button{width:auto;margin:0;padding:7px 12px;font-size:12.5px;background:#1a2138;border:1px solid #2a3150;color:#cbd3e6;font-weight:700;border-radius:10px}
+.acts button.pay{background:#0f3b2a;border-color:#12533a;color:#3ddc97}
+.acts button.stop{background:#2a1520;border-color:#4a2030;color:#ff9aa8}
+.stat{display:flex;gap:9px;margin-top:14px}
+.stat div{flex:1;background:#0f1424;border:1px solid #232a40;border-radius:14px;padding:10px;text-align:center}
+.stat b{display:block;font-size:21px}.stat span{font-size:11.5px;color:#9aa3bb}
+.err{background:#3d1520;color:#ff9aa8;border-radius:12px;padding:11px 13px;font-size:14px;margin-top:14px;display:none;line-height:1.6}
+.msg{background:#0f3b2a;color:#3ddc97;border-radius:12px;padding:11px 13px;font-size:14px;margin-top:14px;display:none}
+.hint{color:#7e87a0;font-size:12.5px;margin-top:6px;line-height:1.6}
+</style>
+</head><body><div class="wrap">
+
+<div id="login">
+  <h1>المحلات المشتركة</h1>
+  <p class="sub">ادخل بحساب صاحب البرنامج.</p>
+  <div class="card">
+    <label>اسم المستخدم</label><input id="u" class="ltr" autocomplete="username">
+    <label>كلمة المرور</label><input id="p" class="ltr" type="password" autocomplete="current-password">
+    <button id="go">دخول</button>
+    <div class="err" id="lerr"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <h1>المحلات المشتركة</h1>
+  <div class="stat"><div><b id="nAll">0</b><span>محلات</span></div><div><b id="nPaid">0</b><span>شغالين</span></div><div><b id="nLate">0</b><span>متأخرين</span></div></div>
+  <div class="card" id="list"></div>
+  <div class="msg" id="msg"></div>
+  <div class="err" id="aerr"></div>
+  <div class="card">
+    <div class="nm" style="font-size:15px">إعدادات الاشتراك</div>
+    <label>سعر الشهر</label><input id="price" class="ltr" inputmode="decimal">
+    <label>أيام التجربة للمحل الجديد</label><input id="trial" class="ltr" inputmode="numeric">
+    <label>تعليمات الدفع اللي تظهر للمحلات</label><input id="pay" placeholder="مثلاً: حوّل على إنستاباي 01000840969">
+    <button id="save">احفظ الإعدادات</button>
+    <div class="hint">السعر والتعليمات بتظهر لصاحب المحل لما اشتراكه يخلص.</div>
+  </div>
+</div>
+
+</div>
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var post = function(b){ return window.__mcPost(JSON.stringify(b)); };
+  var token = '';
+  function err(el, m){ var e = $(el); e.textContent = m || ''; e.style.display = m ? 'block' : 'none'; }
+  function flash(m){ var e = $('msg'); e.textContent = m; e.style.display = 'block'; setTimeout(function(){ e.style.display = 'none'; }, 2500); }
+
+  $('go').addEventListener('click', function(){
+    err('lerr','');
+    $('go').disabled = true;
+    post({ fn:'adminApi', args:['', 'login', { username: $('u').value.trim(), password: $('p').value }] }).then(function(j){
+      var r = j && j.result;
+      $('go').disabled = false;
+      if (!r || !r.ok) return err('lerr', (r && r.error) || 'تعذر الدخول');
+      token = r.data.token || r.data.session_token || '';
+      if (!token) return err('lerr', 'تعذر الدخول');
+      $('login').style.display = 'none'; $('app').style.display = 'block';
+      load();
+    }).catch(function(){ $('go').disabled = false; err('lerr','تعذر الاتصال'); });
+  });
+
+  function act(code, action, extra){
+    var body = { code: code };
+    if (extra) for (var k in extra) body[k] = extra[k];
+    return post({ fn:'saasAdmin', args:[token, action, body] }).then(function(j){
+      var r = j && j.result;
+      if (!r || !r.ok) { err('aerr', (r && r.error) || 'تعذر التنفيذ'); return null; }
+      err('aerr','');
+      return r.data;
+    });
+  }
+
+  function load(){
+    post({ fn:'saasAdmin', args:[token, 'list', {}] }).then(function(j){
+      var r = j && j.result;
+      if (!r || !r.ok) return err('aerr', (r && r.error) || 'تعذر التحميل');
+      var d = r.data, shops = d.shops || [], s = d.settings || {};
+      $('price').value = s.price_monthly || ''; $('trial').value = s.trial_days || ''; $('pay').value = s.pay_instructions || '';
+      $('nAll').textContent = shops.length;
+      $('nPaid').textContent = shops.filter(function(x){ return x.active; }).length;
+      $('nLate').textContent = shops.filter(function(x){ return !x.active; }).length;
+      var el = $('list'); el.innerHTML = '';
+      shops.forEach(function(x){
+        var d1 = document.createElement('div'); d1.className = 'row';
+        var cls = x.active ? (x.plan === 'trial' ? 'wait' : 'ok') : 'off';
+        var until = x.until ? (x.plan === 'trial' ? 'التجربة لحد ' + x.until : (x.active ? 'مدفوع لحد ' + x.until : 'انتهى في ' + x.until)) : '';
+        var left = document.createElement('div');
+        left.innerHTML = '<div class="nm"></div><div class="meta"></div>';
+        left.querySelector('.nm').textContent = x.name;
+        left.querySelector('.meta').textContent = [x.code, until, x.customers + ' عميل', x.email].filter(Boolean).join(' · ');
+        if (x.code !== 'mobily') {
+          var acts = document.createElement('div'); acts.className = 'acts';
+          var b1 = document.createElement('button'); b1.className = 'pay'; b1.textContent = 'دفع شهر';
+          b1.onclick = function(){ act(x.code, 'markPaid', { months: 1 }).then(function(r){ if (r) { flash('اتسجل الدفع لحد ' + r.paid_until); load(); } }); };
+          var b2 = document.createElement('button');
+          b2.className = x.status === 'suspended' ? '' : 'stop';
+          b2.textContent = x.status === 'suspended' ? 'تفعيل' : 'إيقاف';
+          b2.onclick = function(){ act(x.code, x.status === 'suspended' ? 'activate' : 'suspend', {}).then(function(r){ if (r) { flash('تم'); load(); } }); };
+          acts.appendChild(b1); acts.appendChild(b2);
+          left.appendChild(acts);
+        }
+        var pill = document.createElement('span'); pill.className = 'pill ' + cls; pill.textContent = x.label;
+        d1.appendChild(left); d1.appendChild(pill);
+        el.appendChild(d1);
+      });
+    }).catch(function(){ err('aerr','تعذر الاتصال'); });
+  }
+
+  $('save').addEventListener('click', function(){
+    post({ fn:'saasAdmin', args:[token, 'settings', { price_monthly: $('price').value.trim(), trial_days: $('trial').value.trim(), pay_instructions: $('pay').value.trim() }] })
+      .then(function(j){ var r = j && j.result; if (!r || !r.ok) return err('aerr', (r && r.error) || 'تعذر الحفظ'); flash('اتحفظ'); });
+  });
+})();
+</script></body></html>
