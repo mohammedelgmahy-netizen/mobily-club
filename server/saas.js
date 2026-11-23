@@ -172,13 +172,24 @@ async function signup(ctx, p) {
   await core({ fn: 'adminApi', args: ['', 'me', {}, ''] });
   const pass = await firstPassword(sql, t.schema_name);
 
-  // اسم المحل في إعدادات المحل الجديد
+  // اسم المحل في إعدادات المحل الجديد، وتفريغ بيانات التواصل عشان ما تيجيش من الإعدادات الافتراضية
   try {
     await sql.unsafe(
-      `update ${t.schema_name}.mc_settings set value = $1, updated_at = now(), updated_by = 'signup' where key = 'shop_name'`,
+      `update ${t.schema_name}.mc_settings set value = $1, updated_at = now(), updated_by = 'signup'
+       where key in ('shop_name', 'shop_name_ar', 'program_name')`,
       [name]
     );
-  } catch (e) { /* الإعداد مش موجود في نسخة قديمة */ }
+    await sql.unsafe(
+      `update ${t.schema_name}.mc_settings set value = '', updated_at = now(), updated_by = 'signup'
+       where key in ('shop_phone', 'whatsapp_number', 'shop_address', 'tagline', 'logo_url', 'community_link', 'maps_url', 'facebook_url', 'instagram_url')`
+    );
+    if (phone) {
+      await sql.unsafe(
+        `update ${t.schema_name}.mc_settings set value = $1, updated_at = now(), updated_by = 'signup' where key = 'shop_phone'`,
+        [phone]
+      );
+    }
+  } catch (e) { /* إعداد مش موجود في نسخة قديمة */ }
 
   const site = T(ctx.siteUrl) || '';
   return {
