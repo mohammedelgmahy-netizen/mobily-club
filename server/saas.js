@@ -225,11 +225,16 @@ async function signup(ctx, p) {
 }
 
 /** إعداد واحد في محل معين (لو مش موجود بيتضاف) */
+const SETTING_META = {
+  brand_color: ['text', 'brand', 'اللون الأساسي', 'لون كارت العميل وصفحة التسجيل، بصيغة #RRGGBB زي #22D3EE'],
+};
 async function setSetting(sql, schema, key, value) {
+  const m = SETTING_META[key];
   await sql.unsafe(
-    `insert into ${schema}.mc_settings (key, value, updated_at, updated_by) values ($1, $2, now(), 'signup')
+    `insert into ${schema}.mc_settings (key, value, type, "group", label, description, updated_at, updated_by)
+     values ($1, $2, $3, $4, $5, $6, now(), 'signup')
      on conflict (key) do update set value = excluded.value, updated_at = now(), updated_by = 'signup'`,
-    [key, value]
+    [key, value, m ? m[0] : 'text', m ? m[1] : 'program', m ? m[2] : key, m ? m[3] : '']
   );
 }
 
