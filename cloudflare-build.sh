@@ -8,7 +8,7 @@ set -e
 OUT=dist
 rm -rf "$OUT" && mkdir -p "$OUT"
 for f in *; do
-  case "$f" in "$OUT"|server|README.md|cloudflare-build.sh|wrangler.toml) continue ;; esac
+  case "$f" in "$OUT"|node_modules|server|tools|database|*.md|*.sql|*.txt|cloudflare-build.sh|protect.mjs|wrangler.toml|package.json|package-lock.json) continue ;; esac
   cp -R "$f" "$OUT/"
 done
 FILES=$(find "$OUT" -name '*.html')
@@ -22,3 +22,10 @@ if [ -n "$SITE_URL" ]; then
   echo "Site URL: $SITE_URL"
 fi
 grep -ho 'https://[a-z0-9]*\.supabase\.co/functions/v1/[^"]*' "$OUT/index.html" | head -1
+
+# Scramble the JavaScript in dist/ so visitors never get the readable source.
+OBF_VERSION=4.1.1
+if [ ! -d node_modules/javascript-obfuscator ]; then
+  npm install --no-save --no-audit --no-fund --loglevel=error javascript-obfuscator@$OBF_VERSION
+fi
+node protect.mjs "$OUT"
