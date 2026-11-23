@@ -6,7 +6,7 @@ import postgres from 'npm:postgres@3.4.5';
 import * as crypto from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import { handle } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@9ff3a3eb4b27dc4286b9b79c61e812d665207365/server/bundle.js';
-import { handleShop, periodic, afterCore } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@33329f972f7aa8a6954a4ec5387ae378b93023bc/server/shop.js';
+import { handleShop, periodic, afterCore } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@b5899ff2e884a6394d181053dc2576884d326d1f/server/shop.js';
 import { handleRequests } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@3622f5e990a5fe07c9c0752442b857a1e6e9de8f/server/requests.js';
 import { handleGeo } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@00cf9b129103d01d6d69583be7a0caa4123952d7/server/geo.js';
 import { handleRewards } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@9ff3a3eb4b27dc4286b9b79c61e812d665207365/server/rewards.js';
