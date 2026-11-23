@@ -1,6 +1,7 @@
 // MOBILY CLUB — Supabase Edge Function "mobily"
 // نقطة الدخول الوحيدة للموقع. قاعدة البيانات مغلقة أمام المتصفح، وكل عملية تمر من هنا
 // وتخضع لنفس قواعد الأمان والصلاحيات الموجودة في كود النظام.
+// كل محل (Tenant) بياناته في schema لوحده: الطلب بيحدد المحل من body.shop، والفصل من قاعدة البيانات نفسها.
 import postgres from 'npm:postgres@3.4.5';
 import * as crypto from 'node:crypto';
 import { Buffer } from 'node:buffer';
@@ -8,10 +9,12 @@ import { handle } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobi
 import { handleShop, periodic, afterCore } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@33329f972f7aa8a6954a4ec5387ae378b93023bc/server/shop.js';
 import { handleRequests } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@3622f5e990a5fe07c9c0752442b857a1e6e9de8f/server/requests.js';
 import { handleGeo } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@00cf9b129103d01d6d69583be7a0caa4123952d7/server/geo.js';
+import { handleSaas, findTenant, subState, activeTenants } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@1e05b29b20adcc0cf617bba3d4b0eb9c23dd3889/server/saas.js';
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2, idle_timeout: 60 });
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const SITE_URL = Deno.env.get('SITE_URL') || 'https://mohammedelgmahy-netizen.github.io/mobily-club/';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -20,13 +23,44 @@ const CORS = {
   'Access-Control-Max-Age': '86400',
 };
 
-const db = {
+const SCHEMA_OK = /^[a-z][a-z0-9_]{2,40}$/;
+
+// كود النظام مكتوب باسم schema المحل الأصلي، فبنحوّله لـ schema المحل صاحب الطلب قبل التنفيذ.
+// بنحوّل أسماء الجداول بس (mobily.mc_… و mobily."…")، ومش بنلمس أسماء إعدادات الجلسة زي 'mobily.actor_id'.
+function rewrite(text: string, schema: string) {
+  if (schema === 'mobily') return text;
+  return String(text)
+    .replace(/\bmobily\.(?=mc_|")/g, schema + '.')
+    .replace(/table_schema = 'mobily'/g, `table_schema = '${schema}'`);
+}
+
+// نسخة من عميل قاعدة البيانات بتشتغل على schema المحل (نفس الواجهة بالظبط)
+function scopedSql(base: any, schema: string): any {
+  if (schema === 'mobily') return base;
+  const wrap = (c: any) => {
+    const f: any = (strings: any, ...args: any[]) => {
+      if (Array.isArray(strings) && Array.isArray((strings as any).raw)) {
+        const s: any = strings.map((x: string) => rewrite(x, schema));
+        s.raw = (strings as any).raw.map((x: string) => rewrite(x, schema));
+        return c(s, ...args);
+      }
+      return c(strings, ...args);
+    };
+    f.unsafe = (text: string, params?: unknown[]) => c.unsafe(rewrite(text, schema), params);
+    f.begin = (cb: (tx: any) => unknown) => c.begin((tx: any) => cb(wrap(tx)));
+    f.schema = schema;
+    return f;
+  };
+  return wrap(base);
+}
+
+const dbFor = (schema: string) => ({
   transaction: (cb: (q: (text: string, params?: unknown[]) => Promise<any[]>) => Promise<unknown>) =>
     sql.begin(async (tx: any) => {
-      await tx.unsafe('set local search_path to mobily');
+      await tx.unsafe(`set local search_path to ${schema}`);
       return cb((text, params) => tx.unsafe(text, (params || []) as any[]));
     }),
-};
+});
 
 async function storeImage(dataUrl: string, bucket: string, prefix: string, failMsg: string): Promise<string> {
   const m = String(dataUrl || '').match(/^data:(image\/(png|jpeg|jpg|webp|gif));base64,(.+)$/);
@@ -44,37 +78,73 @@ async function storeImage(dataUrl: string, bucket: string, prefix: string, failM
 }
 const uploadImage = (dataUrl: string) => storeImage(dataUrl, 'mc-offers', 'offer', 'تعذر رفع الصورة. ضع رابط صورة يدوياً.');
 
-const core = (b: unknown) => handle(b, db, { crypto, Buffer, uploadImage });
+const coreFor = (schema: string) => (b: unknown) => handle(b, dbFor(schema), { crypto, Buffer, uploadImage });
 
-// التحقق من جلسة الإدارة بنفس منطق النظام (نفس الصلاحيات وانتهاء الجلسة)
-async function verifyAdmin(token: string) {
-  const out: any = await handle({ fn: 'adminApi', args: [token, 'me', {}, ''] }, db, { crypto, Buffer, uploadImage });
-  const res = out && out.result;
-  if (!res || !res.ok) return { ok: false, res: res || { ok: false, error: 'حدث خطأ في الخادم، حاول مرة أخرى' } };
-  const u = res.data.user;
-  return { ok: true, permissions: u.permissions, name: u.display_name || u.username || '', user_id: u.user_id || '', role: u.role || '' };
+// التحقق من جلسة الإدارة بنفس منطق النظام (نفس الصلاحيات وانتهاء الجلسة) — داخل محل واحد
+function verifyAdminIn(schema: string) {
+  return async (token: string) => {
+    const out: any = await coreFor(schema)({ fn: 'adminApi', args: [token, 'me', {}, ''] });
+    const res = out && out.result;
+    if (!res || !res.ok) return { ok: false, res: res || { ok: false, error: 'حدث خطأ في الخادم، حاول مرة أخرى' } };
+    const u = res.data.user;
+    return { ok: true, permissions: u.permissions, name: u.display_name || u.username || '', user_id: u.user_id || '', role: u.role || '' };
+  };
 }
+
+// صاحب البرنامج = صاحب محل mobily
+async function verifyOwner(token: string) {
+  const me: any = await verifyAdminIn('mobily')(token);
+  if (!me.ok) return me;
+  if (me.role !== 'owner') return { ok: false, res: { ok: false, error: 'الصفحة دي لصاحب البرنامج بس' } };
+  return me;
+}
+
+const ADMIN_FNS = ['adminApi', 'shopAdmin', 'geoAdmin', 'requests'];
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return new Response('MOBILY CLUB API', { headers: CORS });
-  let body: unknown;
+  let body: any;
   try { body = await req.json(); } catch { return json({ error: 'bad request' }, 400); }
-  // نبضة كل دقيقة من قاعدة البيانات عشان السيرفر يفضل صاحي واتصاله بقاعدة البيانات مفتوح
-  // ومعاها المهام الدورية (تنبيه أعياد الميلاد، عروض عيد الميلاد، نقاط الترحيب) مرة كل 10 دقايق بالكتير
-  if ((body as any)?.fn === 'ping') { try { await sql`select 1`; await periodic(sql); } catch (e) { console.error(e); } return json({ ok: true }); }
+
+  // نبضة كل دقيقة: السيرفر يفضل صاحي، ومعاها المهام الدورية لكل محل شغال
+  if (body?.fn === 'ping') {
+    try {
+      await sql`select 1`;
+      for (const t of await activeTenants(sql, 50)) {
+        try { await periodic(scopedSql(sql, t.schema_name)); } catch (e) { console.error(t.code, e); }
+      }
+    } catch (e) { console.error(e); }
+    return json({ ok: true });
+  }
+
   try {
-    const fn = (body as any)?.fn;
+    const fn = body?.fn;
+    // طبقة المحلات نفسها (فتح محل جديد / صفحة المحلات) مش بتتبع محل معين
+    if (fn === 'saas' || fn === 'saasAdmin') {
+      return json(await handleSaas(body, { sql, coreFor, verifyOwner, siteUrl: SITE_URL }));
+    }
+
+    const tenant = await findTenant(sql, body?.shop);
+    if (!tenant || !SCHEMA_OK.test(tenant.schema_name)) return json({ result: { ok: false, error: 'المحل ده مش موجود' } });
+    const state = subState(tenant);
+    if (!state.active && ADMIN_FNS.indexOf(fn) >= 0) {
+      return json({ result: { ok: false, error: 'اشتراك المحل منتهي. كلّم صاحب البرنامج عشان تفعّله، وبياناتك كلها محفوظة زي ما هي.', subscription: state } });
+    }
+    const schema = tenant.schema_name;
+    const tsql = scopedSql(sql, schema);
+    const core = coreFor(schema);
+
     if (fn === 'shop' || fn === 'shopAdmin') {
       return json(await handleShop(body, {
-        sql, verifyAdmin, core,
+        sql: tsql, verifyAdmin: verifyAdminIn(schema), core,
         upload: (d: string) => storeImage(d, 'mc-products', 'product', 'تعذر رفع الصورة، حاول مرة أخرى'),
       }));
     }
-    if (fn === 'requests') return json(await handleRequests(body, { sql, verifyAdmin }));
-    if (fn === 'geo' || fn === 'geoAdmin') return json(await handleGeo(body, { sql, verifyAdmin }));
+    if (fn === 'requests') return json(await handleRequests(body, { sql: tsql, verifyAdmin: verifyAdminIn(schema) }));
+    if (fn === 'geo' || fn === 'geoAdmin') return json(await handleGeo(body, { sql: tsql, verifyAdmin: verifyAdminIn(schema) }));
     const out = await core(body);
-    await afterCore(body, out, sql); // عميل جديد ← نقاط الترحيب فوراً
+    await afterCore(body, out, tsql); // عميل جديد ← نقاط الترحيب فوراً
     return json(out);
   } catch (e) {
     console.error(e);
