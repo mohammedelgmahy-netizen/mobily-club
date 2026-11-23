@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#060A14">
+<title>افتح برنامج ولاء لمحلك</title>
+<link rel="icon" type="image/png" href="../icon-192.png">
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(120% 60% at 80% 0,#2a1f4d 0,#0b1020 55%,#070a14 100%);color:#e8ecf5;font-family:system-ui,Tahoma,sans-serif;padding:22px 18px 60px}
+.wrap{max-width:430px;margin:0 auto}
+.logo{display:block;width:140px;margin:6px auto 0;border-radius:22px}
+.tag{display:inline-block;background:#0d3440;color:#38d3f0;font-weight:700;font-size:13px;padding:5px 14px;border-radius:20px;margin-top:18px}
+h1{font-size:26px;font-weight:800;margin:10px 0 6px}
+p.sub{color:#9aa3bb;font-size:15px;line-height:1.7;margin:0}
+.card{background:#0f1424;border:1px solid #232a40;border-radius:20px;padding:18px;margin-top:18px}
+label{display:block;font-weight:700;font-size:15px;margin:12px 0 7px}
+input{width:100%;border:1px solid #2a3150;border-radius:13px;padding:13px 14px;color:#e8ecf5;font-size:15px;background:#0b0f1c;font-family:inherit}
+input:focus{outline:none;border-color:#38d3f0}
+input.ltr{direction:ltr;text-align:right}
+input.bad{border-color:#ff6b81}
+input.good{border-color:#3ddc97}
+.hint{color:#7e87a0;font-size:12.5px;margin-top:6px;line-height:1.6}
+.hint b{color:#38d3f0;font-weight:700}
+.hint.bad{color:#ff9aa8}.hint.good{color:#3ddc97}
+.sug{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+.sug button{width:auto;margin:0;padding:6px 12px;font-size:13px;background:#16203a;border:1px solid #2a3150;color:#9fd9ff;border-radius:10px;font-weight:700;direction:ltr}
+button{width:100%;margin-top:20px;background:linear-gradient(90deg,#22c3e6,#6d5cf6);color:#fff;font-weight:800;padding:14px;border:0;border-radius:14px;font-size:17px;font-family:inherit;cursor:pointer}
+button[disabled]{opacity:.6}
+.err{background:#3d1520;color:#ff9aa8;border-radius:12px;padding:11px 13px;font-size:14px;margin-top:14px;display:none;line-height:1.6}
+.ok{display:none}
+.big{text-align:center;font-size:52px;margin:10px 0}
+.lnk{direction:ltr;text-align:left;background:#0b0f1c;border:1px dashed #38d3f0;border-radius:11px;padding:11px;font-size:13px;color:#38d3f0;margin-top:6px;word-break:break-all}
+.pw{background:#0b0f1c;border:1px solid #2a3150;border-radius:11px;padding:11px;font-size:16px;margin-top:6px;direction:ltr;text-align:left;font-weight:800;letter-spacing:1px}
+.warn{background:#3d300f;color:#f5c542;border-radius:12px;padding:11px 13px;font-size:13.5px;margin-top:14px;line-height:1.7}
+a.btn,button.alt{display:block;width:100%;text-align:center;text-decoration:none;margin-top:12px;background:#0f1424;border:1px solid #38d3f0;color:#38d3f0;font-weight:800;padding:13px;border-radius:14px;font-size:16px;font-family:inherit}
+.row{display:flex;gap:10px;align-items:center}
+.row > *{flex:1}
+.swatch{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.swatch i{width:30px;height:30px;border-radius:9px;display:block;cursor:pointer;border:2px solid transparent}
+.swatch i.on{border-color:#fff}
+.prev{margin-top:14px;border-radius:18px;padding:16px;background:linear-gradient(135deg,#131c33,#0d1324);border:1px solid #27304c}
+.prev .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.prev .bn{font-weight:800;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prev .tier{font-size:11px;font-weight:800;padding:3px 10px;border-radius:99px;background:rgba(255,255,255,.08)}
+.prev .mid{display:flex;justify-content:space-between;align-items:flex-end;margin-top:22px}
+.prev .nm{font-weight:700}
+.prev .mno{color:#8a93ab;font-size:12px;direction:ltr;text-align:right}
+.prev .pts{font-size:30px;font-weight:800;line-height:1}
+.prev .pts small{font-size:12px;font-weight:700;margin-right:4px}
+.prev img.lg{width:44px;height:44px;border-radius:12px;object-fit:cover;display:none}
+.prev .bar{height:7px;border-radius:99px;background:rgba(255,255,255,.1);margin-top:14px;overflow:hidden}
+.prev .bar i{display:block;height:100%;width:45%;border-radius:99px}
+#qr{background:#fff;padding:12px;border-radius:14px;width:fit-content;margin:12px auto 0}
+#qr img, #qr canvas{display:block}
+@media print{
+  body{background:#fff;color:#000;padding:0}
+  .card,.warn,.hint,a.btn,button,.big,.lnk{display:none !important}
+  #printArea{display:block !important;text-align:center;padding:30px}
+  #printArea h2{font-size:26px;margin:0 0 6px}
+}
+#printArea{display:none}
+</style>
+</head><body><div class="wrap">
+<img class="logo" src="../share-logo.png" alt="">
+
+<div id="form">
+  <span class="tag">لأصحاب المحلات</span>
+  <h1>افتح برنامج ولاء لمحلك</h1>
+  <p class="sub">سجّل محلك في دقيقة، وابدأ تجمّع نقاط لعملائك. بيانات محلك منفصلة تماماً عن أي محل تاني.</p>
+  <div class="card">
+    <label>اسم المحل</label>
+    <input id="name" maxlength="80" placeholder="مثلاً: محل النور للموبايلات" autocomplete="organization">
+    <label>كود المحل (بيظهر في لينك عملائك)</label>
+    <input id="code" class="ltr" maxlength="20" placeholder="elnour" autocomplete="off">
+    <div class="hint" id="codeHint">حروف إنجليزي صغيرة وأرقام وشرطة بس.</div>
+    <div class="sug" id="sug"></div>
+    <label>الإيميل</label>
+    <input id="email" class="ltr" type="email" maxlength="120" placeholder="name@example.com" autocomplete="email">
+    <label>رقم الموبايل (اختياري)</label>
+    <input id="phone" class="ltr" maxlength="20" placeholder="01XXXXXXXXX" autocomplete="tel">
+  </div>
+
+  <div class="card">
+    <div style="font-weight:800;font-size:17px">شكل كارت عملائك</div>
+    <div class="hint">كل ده تقدر تغيّره بعدين من الإعدادات.</div>
+    <label>اللون الأساسي</label>
+    <div class="row">
+      <input id="color" type="color" value="#22C3E6" style="padding:4px;height:46px">
+      <div class="swatch" id="sw" style="flex:2"></div>
+    </div>
+    <label>لوجو المحل (اختياري)</label>
+    <input id="logo" type="file" accept="image/*" style="padding:9px">
+    <label>العميل ياخد نقطة على كل كام جنيه؟</label>
+    <input id="per" class="ltr" inputmode="numeric" value="50">
+    <div class="hint" id="perHint"></div>
+    <div class="prev" id="prev">
+      <div class="top"><div style="display:flex;gap:10px;align-items:center"><img class="lg" id="pvLogo" alt=""><div class="bn" id="pvName">اسم محلك</div></div><span class="tier">عضو</span></div>
+      <div class="mid"><div><div class="nm">أحمد محمد</div><div class="mno">100001</div></div><div class="pts" id="pvPts">120<small>نقطة</small></div></div>
+      <div class="bar"><i id="pvBar"></i></div>
+    </div>
+    <button id="go">افتح المحل</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<div id="done" class="ok">
+  <div class="big">✅</div>
+  <h1 style="text-align:center" id="shopName"></h1>
+  <p class="sub" style="text-align:center">محلك اتعمل وجاهز. احفظ البيانات دي دلوقتي.</p>
+  <div class="card">
+    <label>لينك عملاءك</label>
+    <div class="lnk" id="cl"></div>
+    <div id="qr"></div>
+    <button class="alt" id="printQr" type="button">اطبع كود QR للمحل</button>
+    <label>لينك دخول الإدارة</label>
+    <div class="lnk" id="al"></div>
+    <label>اسم المستخدم</label>
+    <div class="pw" id="us"></div>
+    <label>كلمة المرور المؤقتة</label>
+    <div class="pw" id="pw"></div>
+    <div class="warn">صوّر الشاشة دي أو احفظ الكلمتين. هيطلب منك تغيير كلمة المرور أول ما تدخل، وبعدها مش هتظهر تاني.</div>
+    <a class="btn" id="goAdmin" href="#">ادخل لوحة الإدارة</a>
+  </div>
+  <div class="card" id="trialBox" style="display:none">
+    <div class="hint" style="font-size:14px" id="trialTxt"></div>
+  </div>
+  <div id="printArea">
+    <h2 id="prName"></h2>
+    <div style="font-size:15px;margin-bottom:14px">امسح الكود واستلم نقاطك</div>
+    <div id="prQr" style="display:flex;justify-content:center"></div>
+    <div style="font-size:12px;direction:ltr;margin-top:12px" id="prLink"></div>
+  </div>
+</div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script><script>window.__mcPost = function(body){ var b = JSON.parse(body); var a = b.args;
+    if (a[0]==='checkCode'){ var c=a[1].code; var free = c!=='elnour';
+      return Promise.resolve({result:{ok:true,data:{free:free,code:c,reason:free?'':'الكود ده متسجل قبل كده',suggestions:free?[]:['elnour-shop','elnour-store','elnour2']}}}); }
+    return Promise.resolve({result:{ok:true,data:{code:'nourphones',name:'محل النور للموبايلات',username:'owner',password:'Mc7f2a91cc40',customerLink:'https://mohammedelgmahy-netizen.github.io/mobily-club/?s=nourphones',adminLink:'https://mohammedelgmahy-netizen.github.io/mobily-club/?p=admin&s=nourphones',trial_ends:'2026-11-28'}}});
+  };</script>
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var post = function(body){ return window.__mcPost(JSON.stringify(body)); };
+  var codeTouched = false, logoData = '', codeFree = null;
+
+  /* ---------- اللون ---------- */
+  var COLORS = ['#22C3E6','#6D5CF6','#3DDC97','#F5C542','#FF7A59','#FF5C8A','#4C8DFF'];
+  COLORS.forEach(function(c){
+    var i = document.createElement('i'); i.style.background = c; i.title = c;
+    i.onclick = function(){ $('color').value = c; paint(); };
+    $('sw').appendChild(i);
+  });
+  function paint(){
+    var c = $('color').value;
+    $('pvPts').style.color = c; $('pvBar').style.background = c;
+    $('prev').style.borderColor = c;
+    var k = $('sw').children;
+    for (var i = 0; i < k.length; i++) k[i].className = COLORS[i].toLowerCase() === c.toLowerCase() ? 'on' : '';
+  }
+  $('color').addEventListener('input', paint);
+
+  /* ---------- الاسم والكود ---------- */
+  $('name').addEventListener('input', function(){
+    $('pvName').textContent = this.value.trim() || 'اسم محلك';
+    if (codeTouched) return;
+    $('code').value = this.value.toLowerCase().replace(/[^a-z0-9 -]/g,'').trim().replace(/\s+/g,'-').slice(0,20);
+    checkSoon();
+  });
+  $('code').addEventListener('input', function(){
+    codeTouched = true;
+    this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g,'');
+    checkSoon();
+  });
+  var timer = 0;
+  function checkSoon(){ clearTimeout(timer); codeFree = null; $('sug').innerHTML = ''; timer = setTimeout(check, 450); }
+  function hint(msg, cls){ var h = $('codeHint'); h.textContent = msg; h.className = 'hint' + (cls ? ' ' + cls : ''); }
+  function check(){
+    var c = $('code').value.trim();
+    if (c.length < 3) { hint('حروف إنجليزي صغيرة وأرقام وشرطة بس، 3 حروف على الأقل.'); $('code').className = 'ltr'; return; }
+    hint('بنشوف الكود…');
+    post({ fn:'saas', args:['checkCode', { code: c }] }).then(function(j){
+      var r = j && j.result; if (!r || !r.ok) return hint('');
+      if ($('code').value.trim() !== c) return;
+      codeFree = !!r.data.free;
+      $('code').className = 'ltr ' + (codeFree ? 'good' : 'bad');
+      if (codeFree) { hint('الكود متاح ✓ لينك عملاءك: ?s=' + c, 'good'); $('sug').innerHTML = ''; return; }
+      hint(r.data.reason || 'الكود ده مش متاح', 'bad');
+      var box = $('sug'); box.innerHTML = '';
+      (r.data.suggestions || []).forEach(function(s){
+        var b = document.createElement('button'); b.type = 'button'; b.textContent = s;
+        b.onclick = function(){ $('code').value = s; codeTouched = true; check(); };
+        box.appendChild(b);
+      });
+    }).catch(function(){ hint(''); });
+  }
+
+  /* ---------- قيمة النقطة ---------- */
+  function perShow(){
+    var v = Math.round(Number($('per').value) || 0);
+    $('perHint').textContent = v > 0 ? ('يعني فاتورة بـ ' + (v * 10) + ' جنيه = 10 نقط.') : 'اكتب رقم أكبر من صفر.';
+    $('pvPts').innerHTML = '120<small>نقطة</small>';
+  }
+  $('per').addEventListener('input', perShow);
+
+  /* ---------- اللوجو ---------- */
+  $('logo').addEventListener('change', function(){
+    var f = this.files && this.files[0]; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function(){
+      var img = new Image();
+      img.onload = function(){
+        var s = 256, cv = document.createElement('canvas'), m = Math.min(img.width, img.height);
+        cv.width = s; cv.height = s;
+        cv.getContext('2d').drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, s, s);
+        logoData = cv.toDataURL('image/png');
+        $('pvLogo').src = logoData; $('pvLogo').style.display = 'block';
+      };
+      img.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+  });
+
+  function show(msg){ var e = $('err'); e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
+
+  function qr(box, text, size){
+    box.innerHTML = '';
+    if (!window.QRCode) { var a = document.createElement('div'); a.style.cssText='direction:ltr;font-size:12px;color:#111'; a.textContent = text; box.appendChild(a); return; }
+    new window.QRCode(box, { text: text, width: size, height: size, correctLevel: window.QRCode.CorrectLevel.M });
+  }
+
+  $('go').addEventListener('click', function(){
+    var name = $('name').value.trim(), code = $('code').value.trim(), email = $('email').value.trim(), phone = $('phone').value.trim();
+    if (!name) return show('اكتب اسم المحل');
+    if (code.length < 3) return show('كود المحل: من 3 إلى 20 حرف إنجليزي صغير أو رقم');
+    if (codeFree === false) return show('الكود ده محجوز، اختار واحد من الاقتراحات');
+    if (!email) return show('اكتب الإيميل');
+    var per = Math.round(Number($('per').value) || 0);
+    if (per < 1) return show('اكتب كام جنيه للنقطة');
+    show('');
+    $('go').disabled = true; $('go').textContent = 'بنفتح المحل…';
+    window.__mcTimeout = 60000;
+    post({ fn:'saas', args:['signup', { name:name, code:code, email:email, phone:phone, color:$('color').value, amount_per_point:per, logo:logoData }] }).then(function(j){
+      var r = j && j.result;
+      if (!r || !r.ok) { $('go').disabled = false; $('go').textContent = 'افتح المحل'; return show((r && r.error) || 'حصل خطأ، حاول تاني'); }
+      var d = r.data;
+      $('form').style.display = 'none';
+      $('done').style.display = 'block';
+      $('shopName').textContent = d.name;
+      $('cl').textContent = d.customerLink;
+      $('al').textContent = d.adminLink;
+      $('us').textContent = d.username;
+      $('pw').textContent = d.password || '—';
+      $('goAdmin').href = d.adminLink;
+      qr($('qr'), d.customerLink, 180);
+      qr($('prQr'), d.customerLink, 260);
+      $('prName').textContent = d.name;
+      $('prLink').textContent = d.customerLink;
+      if (d.trial_ends) { $('trialBox').style.display = 'block'; $('trialTxt').textContent = 'فترة التجربة لحد ' + d.trial_ends + '. بعدها الإدارة بتقف لحد ما تشترك، وبيانات محلك بتفضل محفوظة زي ما هي.'; }
+      window.scrollTo(0,0);
+    }).catch(function(){ $('go').disabled = false; $('go').textContent = 'افتح المحل'; show('تعذر الاتصال، جرب تاني'); });
+  });
+
+  $('printQr').addEventListener('click', function(){ window.print(); });
+  paint(); perShow();
+})();
+</script></body></html>

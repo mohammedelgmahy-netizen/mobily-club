@@ -8,6 +8,11 @@
 window.MC_FUNCTION_URL = "https://lhamdnaxioxqptkylvkg.supabase.co/functions/v1/mobily?forceFunctionRegion=ap-south-1";
 window.__mcPost = function(body){
   var url = window.MC_FUNCTION_URL;
+  // كود المحل (?s=code) لازم يتبعت مع كل طلب، عشان الطلب يروح لمحله مش لمحل تاني
+  var mcShop = String(window.MC_SHOP || ((location.search.match(/[?&]s=([A-Za-z0-9-]+)/) || [])[1] || '')).toLowerCase().replace(/[^a-z0-9-]/g, '');
+  window.MC_SHOP = mcShop;
+  if (mcShop && body && body.charAt(0) === '{' && body.indexOf('"shop"') < 0)
+    body = '{"shop":"' + mcShop + '"' + (body.length > 2 ? ',' + body.slice(1) : '}');
   var send = function(ct){ var c = window.AbortController ? new AbortController() : null; var t = c ? setTimeout(function(){ c.abort(); }, window.__mcTimeout || (body.length > 200000 ? 120000 : 30000)) : 0; return fetch(url, { method: 'POST', headers: {'Content-Type': ct}, body: body, signal: c ? c.signal : undefined }).then(function(r){ clearTimeout(t); if (r.status >= 400 && r.status !== 500) throw new Error('ct'); return r.json(); }, function(e){ clearTimeout(t); throw e; }); };
   if (window.__mcJson) return send('application/json');
   return send('text/plain;charset=UTF-8').catch(function(e){ if (e && e.name === 'AbortError') throw e; window.__mcJson = true; return send('application/json'); });

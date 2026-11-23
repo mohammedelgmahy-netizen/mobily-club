@@ -8,6 +8,11 @@
 window.MC_FUNCTION_URL = "https://lhamdnaxioxqptkylvkg.supabase.co/functions/v1/mobily?forceFunctionRegion=ap-south-1";
 window.__mcPost = function(body){
   var url = window.MC_FUNCTION_URL;
+  // كود المحل (?s=code) لازم يتبعت مع كل طلب، عشان الطلب يروح لمحله مش لمحل تاني
+  var mcShop = String(window.MC_SHOP || ((location.search.match(/[?&]s=([A-Za-z0-9-]+)/) || [])[1] || '')).toLowerCase().replace(/[^a-z0-9-]/g, '');
+  window.MC_SHOP = mcShop;
+  if (mcShop && body && body.charAt(0) === '{' && body.indexOf('"shop"') < 0)
+    body = '{"shop":"' + mcShop + '"' + (body.length > 2 ? ',' + body.slice(1) : '}');
   var send = function(ct){ var c = window.AbortController ? new AbortController() : null; var t = c ? setTimeout(function(){ c.abort(); }, window.__mcTimeout || (body.length > 200000 ? 120000 : 30000)) : 0; return fetch(url, { method: 'POST', headers: {'Content-Type': ct}, body: body, signal: c ? c.signal : undefined }).then(function(r){ clearTimeout(t); if (r.status >= 400 && r.status !== 500) throw new Error('ct'); return r.json(); }, function(e){ clearTimeout(t); throw e; }); };
   if (window.__mcJson) return send('application/json');
   return send('text/plain;charset=UTF-8').catch(function(e){ if (e && e.name === 'AbortError') throw e; window.__mcJson = true; return send('application/json'); });
@@ -482,7 +487,7 @@ function boot() {
 
 var PAGES = [
   ['dashboard', 'لوحة المؤشرات', 'dashboard', '📊', '#0891B2'], ['reports', 'التقارير', 'dashboard', '📈', '#2563EB'], ['sales', 'تسجيل بيع / استبدال', 'sales', '🧾', '#16A34A'], ['customers', 'العملاء', 'customers_view', '👥', '#2563EB'],
-  ['offers', 'العروض', 'offers_manage', '🎁', '#DB2777'], ['products', 'المنتجات', 'settings', '🛍️', '#EA580C'], ['shoporders', 'طلبات المنتجات', 'settings', '📦', '#0D9488'], ['promos', 'أكواد الخصم', 'settings', '🏷️', '#7C3AED'], ['whatsapp', 'واتساب', 'whatsapp', '💬', '#059669'], ['birthdays', 'أعياد الميلاد', 'whatsapp', '🎂', '#E11D48'], ['ledger', 'سجل النقاط', 'customers_view', '⭐', '#D97706'], ['rewards', 'سجل المكافآت', 'settings', '🏅', '#B45309'],
+  ['offers', 'العروض', 'offers_manage', '🎁', '#DB2777'], ['products', 'المنتجات', 'settings', '🛍️', '#EA580C'], ['shoporders', 'طلبات المنتجات', 'settings', '📦', '#0D9488'], ['promos', 'أكواد الخصم', 'settings', '🏷️', '#7C3AED'], ['whatsapp', 'واتساب', 'whatsapp', '💬', '#059669'], ['birthdays', 'أعياد الميلاد', 'whatsapp', '🎂', '#E11D48'], ['ledger', 'سجل النقاط', 'customers_view', '⭐', '#D97706'], ['rewardcat', 'كتالوج المكافآت', 'offers_manage', '🏅', '#B45309'], ['rewards', 'سجل المكافآت', 'settings', '🎁', '#B45309'],
   ['settings', 'الإعدادات', 'settings', '⚙️', '#475569'], ['users', 'الموظفون', 'users_manage', '🧑‍💼', '#7C3AED'], ['activity', 'سجل العمليات', 'audit', '📋', '#0F766E'], ['requests', 'طلبات تعديل', 'settings', '📝', '#0284C7'], ['geo', 'تذكير القرب', 'settings', '📍', '#DC2626'], ['export', 'Export Data to Excel', null, '📗', '#16A34A'], ['backup', 'Backup & Restore', null, '🛡️', '#0F766E'], ['qr', 'QR المحل', null, '🔳', '#0B1222']
 ];
 function pageOk(p) {
@@ -504,7 +509,7 @@ function go(p, opt) {
     (GO_OPT.label ? '<span class="badge gold">' + esc(GO_OPT.label) + '</span>' : '') + '</div>' : '') + '<div id="viewIn"></div>';
   if (back) $('#backBtn').onclick = function () { go(back[0], back[2]); };
   var v = $('#viewIn'); loading(v);
-  ({ dashboard: function (v) { if (window.viewDashboard2) viewDashboard2(v); else viewDashboard(v); }, export: function (v) { if (window.viewExport) viewExport(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, backup: function (v) { if (window.viewBackup) viewBackup(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, reports: viewReports, birthdays: viewBirthdays, sales: viewSales, customers: viewCustomers, offers: viewOffers, shoporders: function (v) { if (window.viewShopOrders) viewShopOrders(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, rewards: function (v) { if (window.viewRewards) viewRewards(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, promos: function (v) { if (window.viewShopPromos) viewShopPromos(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, products: function (v) { if (window.viewProducts) viewProducts(v); else v.innerHTML = '<div class="err">تعذر تحميل صفحة المنتجات، حدّث الصفحة</div>'; }, whatsapp: viewWhatsApp,
+  ({ dashboard: function (v) { if (window.viewDashboard2) viewDashboard2(v); else viewDashboard(v); }, export: function (v) { if (window.viewExport) viewExport(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, backup: function (v) { if (window.viewBackup) viewBackup(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, reports: viewReports, birthdays: viewBirthdays, sales: viewSales, customers: viewCustomers, offers: viewOffers, shoporders: function (v) { if (window.viewShopOrders) viewShopOrders(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, rewards: function (v) { if (window.viewRewards) viewRewards(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, rewardcat: function (v) { if (window.viewRewardCat) viewRewardCat(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, promos: function (v) { if (window.viewShopPromos) viewShopPromos(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, products: function (v) { if (window.viewProducts) viewProducts(v); else v.innerHTML = '<div class="err">تعذر تحميل صفحة المنتجات، حدّث الصفحة</div>'; }, whatsapp: viewWhatsApp,
      ledger: viewLedger, settings: viewSettings, users: viewUsers, activity: viewActivity, requests: viewRequests, geo: function (v) { if (window.viewGeo) viewGeo(v); else v.innerHTML = '<div class="err">تعذر تحميل الصفحة، حدّث الصفحة</div>'; }, qr: viewQR }[p] || viewDashboard)(v);
 }
 
@@ -1670,6 +1675,7 @@ boot();
 
 <script src="shop-admin.js?v=aaeeaa36fb"></script>
 <script src="reports-admin.js?v=b4f6788c7e"></script>
+<script src="rewards-admin.js?v=b34e3c6b35"></script>
 <script src="geo.js?v=5ad9b6c532"></script>
 </body>
 </html>

@@ -8,6 +8,11 @@
 window.MC_FUNCTION_URL = "https://lhamdnaxioxqptkylvkg.supabase.co/functions/v1/mobily?forceFunctionRegion=ap-south-1";
 window.__mcPost = function(body){
   var url = window.MC_FUNCTION_URL;
+  // كود المحل (?s=code) لازم يتبعت مع كل طلب، عشان الطلب يروح لمحله مش لمحل تاني
+  var mcShop = String(window.MC_SHOP || ((location.search.match(/[?&]s=([A-Za-z0-9-]+)/) || [])[1] || '')).toLowerCase().replace(/[^a-z0-9-]/g, '');
+  window.MC_SHOP = mcShop;
+  if (mcShop && body && body.charAt(0) === '{' && body.indexOf('"shop"') < 0)
+    body = '{"shop":"' + mcShop + '"' + (body.length > 2 ? ',' + body.slice(1) : '}');
   var send = function(ct){ var c = window.AbortController ? new AbortController() : null; var t = c ? setTimeout(function(){ c.abort(); }, window.__mcTimeout || (body.length > 200000 ? 120000 : 30000)) : 0; return fetch(url, { method: 'POST', headers: {'Content-Type': ct}, body: body, signal: c ? c.signal : undefined }).then(function(r){ clearTimeout(t); if (r.status >= 400 && r.status !== 500) throw new Error('ct'); return r.json(); }, function(e){ clearTimeout(t); throw e; }); };
   if (window.__mcJson) return send('application/json');
   return send('text/plain;charset=UTF-8').catch(function(e){ if (e && e.name === 'AbortError') throw e; window.__mcJson = true; return send('application/json'); });
@@ -179,6 +184,8 @@ details.howto summary{cursor:pointer;font-weight:700}
   <div class="stats" id="stats"></div>
 
   <div class="panel" id="rewardPanel"></div>
+
+  <div class="panel" id="rewardsBox" style="display:none"></div>
 
   <div id="offersWrap"></div>
 
@@ -456,6 +463,37 @@ function renderBarcode(el, text) {
 }
 renderBarcode($('#qr'), D.customer.member_no);
 render();
+
+/* ---------- كتالوج المكافآت: مستويات بنقاط مختلفة + شريط تقدم ---------- */
+function renderRewards() {
+  api('rewards', 'list', { token: TOKEN }).then(function (r) {
+    var list = r.rewards || [];
+    if (!list.length) { $('#rewardsBox').style.display = 'none'; return; }
+    var en = LANG === 'en';
+    var h = '<h3 style="margin:0 0 10px">' + (en ? 'Rewards' : 'المكافآت') + '</h3>';
+    if (r.next) {
+      var done = r.next.points_cost - r.next.need, pct = Math.max(0, Math.min(100, Math.round(done / r.next.points_cost * 100)));
+      h += '<div><b>' + esc(en ? ('Need ' + r.next.need + ' more points for: ' + r.next.title) : ('فاضلك ' + r.next.need + ' نقطة على: ' + r.next.title)) + '</b>' +
+        '<div class="progress"><i style="width:' + pct + '%"></i></div>' +
+        '<div class="small muted">' + esc(en ? ('Your balance: ' + r.balance + ' points') : ('رصيدك ' + r.balance + ' نقطة')) + '</div></div>';
+    } else {
+      h += '<div class="small muted">' + esc(en ? ('Your balance: ' + r.balance + ' points') : ('رصيدك ' + r.balance + ' نقطة')) + '</div>';
+    }
+    h += '<div class="list" style="margin-top:12px">' + list.map(function (x) {
+      return '<div class="it"><div class="l"><div>' + esc(x.icon || '🎁') + ' ' + esc(x.title) +
+        (x.ready ? ' <span class="badge">' + (en ? 'ready' : 'جاهزة') + '</span>' : '') + '</div>' +
+        (x.description ? '<small>' + esc(x.description) + '</small>' : '') + '</div><div class="pos">' + x.points_cost + '</div></div>';
+    }).join('') + '</div>';
+    if ((r.claims || []).length) {
+      h += '<div class="small muted" style="margin-top:12px">' + (en ? 'You received: ' : 'استلمت قبل كده: ') +
+        esc(r.claims.map(function (c) { return c.title; }).slice(0, 5).join('، ')) + '</div>';
+    }
+    h += '<div class="small muted" style="margin-top:8px">' + (en ? 'Show your card at the shop to receive a reward.' : 'اعرض كارتك في المحل عشان تستلم مكافأتك.') + '</div>';
+    $('#rewardsBox').innerHTML = h;
+    $('#rewardsBox').style.display = '';
+  }).catch(function () { $('#rewardsBox').style.display = 'none'; });
+}
+renderRewards();
 if (BOOT.focusOffer) setTimeout(function () { var el = document.getElementById('offer-' + BOOT.focusOffer); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
 
 $all('.tabs button').forEach(function (b) {
@@ -465,7 +503,7 @@ $all('.tabs button').forEach(function (b) {
     $('#histPurchases').classList.toggle('hidden', b.dataset.tab !== 'purchases');
   };
 });
-$('#langBtn').onclick = function () { LANG = LANG === 'en' ? 'ar' : 'en'; store('mc_lang', LANG); render(); };
+$('#langBtn').onclick = function () { LANG = LANG === 'en' ? 'ar' : 'en'; store('mc_lang', LANG); render(); renderRewards(); };
 $('#refreshBtn').onclick = function () {
   $('#refreshBtn').innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span>';
   api('publicApi', 'card', { token: TOKEN }).then(function (d) { D = d; render(); }).catch(function (e) { alertBox(e.message); })
