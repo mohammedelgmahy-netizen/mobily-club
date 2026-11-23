@@ -9,7 +9,7 @@ import { handle } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobi
 import { handleShop, periodic, afterCore } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@33329f972f7aa8a6954a4ec5387ae378b93023bc/server/shop.js';
 import { handleRequests } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@3622f5e990a5fe07c9c0752442b857a1e6e9de8f/server/requests.js';
 import { handleGeo } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@00cf9b129103d01d6d69583be7a0caa4123952d7/server/geo.js';
-import { handleSaas, findTenant, subState, activeTenants } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@1e05b29b20adcc0cf617bba3d4b0eb9c23dd3889/server/saas.js';
+import { handleSaas, findTenant, subState, activeTenants } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@09952b934f721b358c0c6f243c27532d7547ce93/server/saas.js';
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2, idle_timeout: 60 });
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
