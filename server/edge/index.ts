@@ -5,11 +5,12 @@
 import postgres from 'npm:postgres@3.4.5';
 import * as crypto from 'node:crypto';
 import { Buffer } from 'node:buffer';
-import { handle } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@60676d4ea04d45d2534faa91fcf306007cf655a7/server/bundle.js';
+import { handle } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@9ff3a3eb4b27dc4286b9b79c61e812d665207365/server/bundle.js';
 import { handleShop, periodic, afterCore } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@33329f972f7aa8a6954a4ec5387ae378b93023bc/server/shop.js';
 import { handleRequests } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@3622f5e990a5fe07c9c0752442b857a1e6e9de8f/server/requests.js';
 import { handleGeo } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@00cf9b129103d01d6d69583be7a0caa4123952d7/server/geo.js';
-import { handleSaas, findTenant, subState, activeTenants } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@6065613070fccb019d8d142757d163e1e8c1c5d7/server/saas.js';
+import { handleRewards } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@9ff3a3eb4b27dc4286b9b79c61e812d665207365/server/rewards.js';
+import { handleSaas, findTenant, subState, activeTenants } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@9ff3a3eb4b27dc4286b9b79c61e812d665207365/server/saas.js';
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2, idle_timeout: 60 });
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -99,7 +100,7 @@ async function verifyOwner(token: string) {
   return me;
 }
 
-const ADMIN_FNS = ['adminApi', 'shopAdmin', 'geoAdmin', 'requests'];
+const ADMIN_FNS = ['adminApi', 'shopAdmin', 'geoAdmin', 'requests', 'rewardsAdmin'];
 // لما يبقى اشتراك المحل منتهي: الإدارة بتقف، وكمان أي عملية بتضيف بيانات أو نقاط.
 // القراءة للعميل (الكارت، الرصيد، الطلبات القديمة) بتفضل شغالة، وولا بيان بيتمسح.
 const PUBLIC_WRITE = ['register'];
@@ -152,6 +153,7 @@ Deno.serve(async (req: Request) => {
         upload: (d: string) => storeImage(d, 'mc-products', 'product', 'تعذر رفع الصورة، حاول مرة أخرى'),
       }));
     }
+    if (fn === 'rewards' || fn === 'rewardsAdmin') return json(await handleRewards(body, { sql: tsql, verifyAdmin: verifyAdminIn(schema), core }));
     if (fn === 'requests') return json(await handleRequests(body, { sql: tsql, verifyAdmin: verifyAdminIn(schema) }));
     if (fn === 'geo' || fn === 'geoAdmin') return json(await handleGeo(body, { sql: tsql, verifyAdmin: verifyAdminIn(schema) }));
     const out = await core(body);
