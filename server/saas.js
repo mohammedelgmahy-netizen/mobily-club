@@ -120,12 +120,19 @@ export async function handleSaas(body, ctx) {
       const out = [];
       for (const r of rows) {
         const st = subState(r);
-        let customers = 0;
-        try { const [c] = await sql.unsafe(`select count(*)::int as n from ${r.schema_name}.mc_customers`); customers = c ? c.n : 0; } catch (e) { customers = 0; }
+        let customers = 0, points = 0, sales = 0, last = '';
+        try {
+          const [c] = await sql.unsafe(`select
+              (select count(*) from ${r.schema_name}.mc_customers)::int as customers,
+              (select coalesce(sum(points_balance), 0) from ${r.schema_name}.mc_customers)::int as points,
+              (select count(*) from ${r.schema_name}.mc_transactions where status <> 'void')::int as sales,
+              (select to_char(max(created_at) at time zone 'Africa/Cairo', 'YYYY-MM-DD') from ${r.schema_name}.mc_pointsledger) as last`);
+          if (c) { customers = c.customers; points = c.points; sales = c.sales; last = c.last || ''; }
+        } catch (e) { /* محل لسه ما اتجهزش */ }
         out.push({
           id: r.tenant_id, code: r.code, name: r.name, email: r.owner_email, phone: r.owner_phone,
           status: r.status, plan: st.plan, label: st.label, active: st.active, until: st.until,
-          created_at: r.created_at, customers,
+          created_at: r.created_at, customers, points, sales, last,
         });
       }
       return ok({ shops: out, settings: await props(sql) });
@@ -141,6 +148,18 @@ export async function handleSaas(body, ctx) {
       );
       if (!row) return bad('المحل مش موجود');
       return ok({ code: row.code, paid_until: row.paid_until });
+    }
+    if (action === 'extendTrial') {
+      const days = Math.max(1, Math.min(90, Number(p.days || 7)));
+      const [row] = await sql.unsafe(
+        `update mobily_saas.tenants set plan = 'trial',
+           trial_ends = greatest(coalesce(trial_ends, (now() at time zone 'Africa/Cairo')::date), (now() at time zone 'Africa/Cairo')::date) + ($2 || ' days')::interval,
+           status = case when status = 'suspended' then 'active' else status end
+         where code = $1 and code <> 'mobily' returning code, trial_ends::text as trial_ends`,
+        [T(p.code), String(days)]
+      );
+      if (!row) return bad('المحل مش موجود');
+      return ok({ code: row.code, trial_ends: row.trial_ends });
     }
     if (action === 'suspend' || action === 'activate') {
       const [row] = await sql.unsafe(
