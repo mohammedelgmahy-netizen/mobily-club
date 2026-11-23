@@ -9,7 +9,7 @@ import { handle } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobi
 import { handleShop, periodic, afterCore } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@33329f972f7aa8a6954a4ec5387ae378b93023bc/server/shop.js';
 import { handleRequests } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@3622f5e990a5fe07c9c0752442b857a1e6e9de8f/server/requests.js';
 import { handleGeo } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@00cf9b129103d01d6d69583be7a0caa4123952d7/server/geo.js';
-import { handleSaas, findTenant, subState, activeTenants } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@e3f66b0c14624051d46a2a7884aceb3fe7c2666b/server/saas.js';
+import { handleSaas, findTenant, subState, activeTenants } from 'https://cdn.jsdelivr.net/gh/mohammedelgmahy-netizen/mobily-club@6065613070fccb019d8d142757d163e1e8c1c5d7/server/saas.js';
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2, idle_timeout: 60 });
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -132,7 +132,7 @@ Deno.serve(async (req: Request) => {
     const fn = body?.fn;
     // طبقة المحلات نفسها (فتح محل جديد / صفحة المحلات) مش بتتبع محل معين
     if (fn === 'saas' || fn === 'saasAdmin') {
-      return json(await handleSaas(body, { sql, coreFor, verifyOwner, siteUrl: SITE_URL }));
+      return json(await handleSaas(body, { sql, coreFor, verifyOwner, siteUrl: SITE_URL, upload: (d: string) => storeImage(d, 'mc-offers', 'logo', 'تعذر رفع اللوجو') }));
     }
 
     const tenant = await findTenant(sql, body?.shop);
@@ -156,6 +156,13 @@ Deno.serve(async (req: Request) => {
     if (fn === 'geo' || fn === 'geoAdmin') return json(await handleGeo(body, { sql: tsql, verifyAdmin: verifyAdminIn(schema) }));
     const out = await core(body);
     await afterCore(body, out, tsql); // عميل جديد ← نقاط الترحيب فوراً
+    // اللون الأساسي للمحل (إعداد زيادة مش موجود في بيانات الصفحة الأساسية)
+    if (fn === 'page' && (out as any)?.result?.boot?.settings) {
+      try {
+        const [c] = await tsql.unsafe(`select value from mobily.mc_settings where key = 'brand_color'`);
+        if (c && c.value) (out as any).result.boot.settings.brand_color = c.value;
+      } catch (e) { /* إعداد مش موجود */ }
+    }
     return json(out);
   } catch (e) {
     console.error(e);
