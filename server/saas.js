@@ -42,6 +42,18 @@ export function subState(t, today) {
   return { active: false, plan: 'unpaid', label: PLAN_LABEL.unpaid, until: until || trial };
 }
 
+/** اقتراحات لكود بديل لما الكود يبقى محجوز */
+async function suggestCodes(sql, base) {
+  const b = String(base).slice(0, 14).replace(/-+$/, '');
+  const cand = [];
+  const add = (v) => { if (CODE_RE.test(v) && RESERVED.indexOf(v) < 0 && cand.indexOf(v) < 0) cand.push(v); };
+  add(b + '-shop'); add(b + '-store'); add(b + '-eg'); add(b + '2'); add(b + '-1');
+  for (let i = 0; i < 3; i++) add(b + String(Math.floor(Math.random() * 90) + 10));
+  const rows = await sql.unsafe('select code from mobily_saas.tenants where code = any($1)', [cand]);
+  const taken = rows.map((r) => r.code);
+  return cand.filter((x) => taken.indexOf(x) < 0).slice(0, 3);
+}
+
 /** بيانات المحل من الكود (مع كاش قصير عشان ما نسألش قاعدة البيانات كل طلب) */
 export async function findTenant(sql, code) {
   const c = T(code).toLowerCase() || 'mobily';
@@ -82,9 +94,10 @@ export async function handleSaas(body, ctx) {
       const p = args[1] && typeof args[1] === 'object' ? args[1] : {};
       if (action === 'checkCode') {
         let c;
-        try { c = cleanCode(p.code); } catch (e) { return ok({ free: false, reason: e.message }); }
+        try { c = cleanCode(p.code); } catch (e) { return ok({ free: false, reason: e.message, suggestions: [] }); }
         const t = await findTenant(sql, c);
-        return ok({ free: !t, code: c, reason: t ? 'الكود ده متسجل قبل كده' : '' });
+        if (!t) return ok({ free: true, code: c, reason: '', suggestions: [] });
+        return ok({ free: false, code: c, reason: 'الكود ده متسجل قبل كده', suggestions: await suggestCodes(sql, c) });
       }
       if (action === 'signup') return ok(await signup(ctx, p));
       if (action === 'info') {
@@ -189,6 +202,14 @@ async function signup(ctx, p) {
         [phone]
       );
     }
+    // شكل المحل: لون أساسي، وجنيهات لكل نقطة، واللوجو
+    const color = /^#[0-9a-fA-F]{6}$/.test(T(p.color)) ? T(p.color).toUpperCase() : '';
+    if (color) await setSetting(sql, t.schema_name, 'brand_color', color);
+    const per = Math.round(Number(p.amount_per_point));
+    if (per >= 1 && per <= 10000) await setSetting(sql, t.schema_name, 'amount_per_point', String(per));
+    if (T(p.logo).slice(0, 11) === 'data:image/' && ctx.upload) {
+      try { await setSetting(sql, t.schema_name, 'logo_url', await ctx.upload(p.logo)); } catch (e) { /* اللوجو ممكن يترفع بعدين من الإعدادات */ }
+    }
   } catch (e) { /* إعداد مش موجود في نسخة قديمة */ }
 
   const site = T(ctx.siteUrl) || '';
@@ -201,6 +222,15 @@ async function signup(ctx, p) {
     adminLink: site ? `${site}?p=admin&s=${t.code}` : `?p=admin&s=${t.code}`,
     trial_ends: t.trial_ends ? String(t.trial_ends).slice(0, 10) : '',
   };
+}
+
+/** إعداد واحد في محل معين (لو مش موجود بيتضاف) */
+async function setSetting(sql, schema, key, value) {
+  await sql.unsafe(
+    `insert into ${schema}.mc_settings (key, value, updated_at, updated_by) values ($1, $2, now(), 'signup')
+     on conflict (key) do update set value = excluded.value, updated_at = now(), updated_by = 'signup'`,
+    [key, value]
+  );
 }
 
 /** المهام الدورية لكل المحلات الشغالة (نفس مهام المحل الواحد، بس على كل schema) */
