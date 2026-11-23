@@ -17,6 +17,12 @@ window.__mcPost = function(body){
   if (window.__mcJson) return send('application/json');
   return send('text/plain;charset=UTF-8').catch(function(e){ if (e && e.name === 'AbortError') throw e; window.__mcJson = true; return send('application/json'); });
 };
+window.mcErrText = function (e) {
+  if (e && (e.name === 'AbortError' || e.message === 'AbortError')) return 'الطلب خد وقت طويل. جرب تاني.';
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'مفيش إنترنت. وصّل الواي فاي أو الداتا وجرب تاني.';
+  if (e && e.message === 'ct') return 'السيرفر رفض الطلب. حدّث الصفحة وجرب تاني.';
+  return 'تعذر الاتصال بالسيرفر. جرب تاني بعد شوية، ولو فضلت كده كلّم المحل.';
+};
 (function(){
   function runner(ok, fail){
     var base = { withSuccessHandler: function(f){ return runner(f, fail); }, withFailureHandler: function(f){ return runner(ok, f); } };
@@ -24,7 +30,7 @@ window.__mcPost = function(body){
       var args = Array.prototype.slice.call(arguments);
       window.__mcPost(JSON.stringify({ fn: p, args: args }))
         .then(function(j){ if (j.error) { fail && fail(new Error(j.error)); } else { ok && ok(j.result); } })
-        .catch(function(e){ fail && fail(new Error('تعذر الاتصال بالخادم، تأكد من الإنترنت')); });
+        .catch(function(e){ fail && fail(new Error(window.mcErrText(e))); });
     }; } });
   }
   window.google = { script: { run: runner(null, null) } };
@@ -328,7 +334,7 @@ function api(fn) {
         if (res && res.ok) resolve(res.data);
         else { var e = new Error(res && res.error ? res.error : 'حدث خطأ غير متوقع'); e.code = res && res.code; reject(e); }
       })
-      .withFailureHandler(function (err) { reject(new Error((err && err.message) || 'تعذر الاتصال بالخادم، تأكد من الإنترنت')); });
+      .withFailureHandler(function (err) { reject(new Error((err && err.message) || window.mcErrText(err))); });
     r[fn].apply(r, args);
   });
 }
@@ -1492,14 +1498,41 @@ function waSendStep(id, r, list, keep) {
 /* ---------------- سجل النقاط ---------------- */
 function viewLedger(v) {
   v.innerHTML = '<div class="card"><div class="toolbar"><h2 style="margin:0;flex:1">سجل حركات النقاط (Ledger)</h2><select id="lgType" style="flex:0 0 200px"><option value="">كل الأنواع</option>' +
-    Object.keys(TYPE_AR).map(function (k) { return '<option value="' + k + '">' + TYPE_AR[k] + '</option>'; }).join('') + '</select></div><div id="lgBox"></div></div>';
+    Object.keys(TYPE_AR).map(function (k) { return '<option value="' + k + '">' + TYPE_AR[k] + '</option>'; }).join('') + '</select></div>' +
+    '<div class="row"><input id="lgQ" placeholder="بحث بالاسم أو رقم العضوية أو رقم الفاتورة"><button class="btn ghost sm" type="button" id="lgCsv">نزّل CSV</button></div>' +
+    '<div id="lgBox"></div></div>';
+  var ROWS = [];
+  var shown = function () {
+    var q = $('#lgQ').value.trim().toLowerCase();
+    if (!q) return ROWS;
+    return ROWS.filter(function (e) {
+      return [e.name, e.member_no, e.invoice_no, e.reason, e.employee].join(' ').toLowerCase().indexOf(q) >= 0;
+    });
+  };
+  var draw = function () {
+    var rows = shown(), box = $('#lgBox');
+    box.innerHTML = rows.length ? '<div class="small muted" style="margin-bottom:6px">' + rows.length + ' حركة</div><div class="tblwrap"><table class="tbl"><tr><th>التاريخ</th><th>العميل</th><th>النوع</th><th>نقاط</th><th>الرصيد بعد</th><th>فاتورة</th><th>السبب</th><th>الموظف</th></tr>' + rows.map(function (e) {
+      return '<tr><td>' + d(e.created_at, 1) + '</td><td>' + esc(e.name) + ' <span class="small muted">' + esc(e.member_no) + '</span></td><td>' + esc(TYPE_AR[e.type] || e.type) + '</td><td class="' + (e.points >= 0 ? 'pos' : 'neg') + '">' + (e.points > 0 ? '+' : '') + e.points + '</td><td>' + e.balance_after + '</td><td>' + esc(e.invoice_no) + '</td><td class="small">' + esc(e.reason) + '</td><td class="small">' + esc(e.employee) + '</td></tr>';
+    }).join('') + '</table></div>' : '<div class="empty">لا توجد حركات</div>';
+  };
   var load = function () {
-    var box = $('#lgBox'); loading(box);
-    call('ledger', { type: $('#lgType').value, limit: 500 }).then(function (rows) {
-      box.innerHTML = rows.length ? '<div class="tblwrap"><table class="tbl"><tr><th>التاريخ</th><th>العميل</th><th>النوع</th><th>نقاط</th><th>الرصيد بعد</th><th>فاتورة</th><th>السبب</th><th>الموظف</th></tr>' + rows.map(function (e) {
-        return '<tr><td>' + d(e.created_at, 1) + '</td><td>' + esc(e.name) + ' <span class="small muted">' + esc(e.member_no) + '</span></td><td>' + esc(TYPE_AR[e.type] || e.type) + '</td><td class="' + (e.points >= 0 ? 'pos' : 'neg') + '">' + (e.points > 0 ? '+' : '') + e.points + '</td><td>' + e.balance_after + '</td><td>' + esc(e.invoice_no) + '</td><td class="small">' + esc(e.reason) + '</td><td class="small">' + esc(e.employee) + '</td></tr>';
-      }).join('') + '</table></div>' : '<div class="empty">لا توجد حركات</div>';
-    }).catch(function (e) { box.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+    loading($('#lgBox'));
+    call('ledger', { type: $('#lgType').value, limit: 500 }).then(function (rows) { ROWS = rows; draw(); })
+      .catch(function (e) { $('#lgBox').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  };
+  $('#lgQ').addEventListener('input', draw);
+  $('#lgCsv').onclick = function () {
+    var rows = shown();
+    if (!rows.length) return toast('مفيش حركات تتنزل', true);
+    var head = ['التاريخ', 'العميل', 'رقم العضوية', 'النوع', 'نقاط', 'الرصيد بعد', 'فاتورة', 'السبب', 'الموظف'];
+    var q = function (x) { return '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"'; };
+    var csv = '\ufeff' + head.map(q).join(',') + '\n' + rows.map(function (e) {
+      return [fmtDate(e.created_at, 'ar', true), e.name, e.member_no, TYPE_AR[e.type] || e.type, e.points, e.balance_after, e.invoice_no, e.reason, e.employee].map(q).join(',');
+    }).join('\n');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'ledger-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
   if (GO_OPT.type) $('#lgType').value = GO_OPT.type;
   $('#lgType').onchange = load; load();

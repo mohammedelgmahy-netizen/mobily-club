@@ -17,6 +17,12 @@ window.__mcPost = function(body){
   if (window.__mcJson) return send('application/json');
   return send('text/plain;charset=UTF-8').catch(function(e){ if (e && e.name === 'AbortError') throw e; window.__mcJson = true; return send('application/json'); });
 };
+window.mcErrText = function (e) {
+  if (e && (e.name === 'AbortError' || e.message === 'AbortError')) return 'الطلب خد وقت طويل. جرب تاني.';
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'مفيش إنترنت. وصّل الواي فاي أو الداتا وجرب تاني.';
+  if (e && e.message === 'ct') return 'السيرفر رفض الطلب. حدّث الصفحة وجرب تاني.';
+  return 'تعذر الاتصال بالسيرفر. جرب تاني بعد شوية، ولو فضلت كده كلّم المحل.';
+};
 (function(){
   function runner(ok, fail){
     var base = { withSuccessHandler: function(f){ return runner(f, fail); }, withFailureHandler: function(f){ return runner(ok, f); } };
@@ -24,7 +30,7 @@ window.__mcPost = function(body){
       var args = Array.prototype.slice.call(arguments);
       window.__mcPost(JSON.stringify({ fn: p, args: args }))
         .then(function(j){ if (j.error) { fail && fail(new Error(j.error)); } else { ok && ok(j.result); } })
-        .catch(function(e){ fail && fail(new Error('تعذر الاتصال بالخادم، تأكد من الإنترنت')); });
+        .catch(function(e){ fail && fail(new Error(window.mcErrText(e))); });
     }; } });
   }
   window.google = { script: { run: runner(null, null) } };

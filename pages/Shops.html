@@ -113,7 +113,7 @@ button{background:linear-gradient(90deg,#22c3e6,#6d5cf6);color:#fff;font-weight:
         var left = document.createElement('div');
         left.innerHTML = '<div class="nm"></div><div class="meta"></div>';
         left.querySelector('.nm').textContent = x.name;
-        left.querySelector('.meta').textContent = [x.code, until, x.customers + ' عميل', x.email].filter(Boolean).join(' · ');
+        left.querySelector('.meta').textContent = [x.code, until, x.customers + ' عميل', x.sales + ' فاتورة', (x.points || 0) + ' نقطة قايمة', x.last ? 'آخر حركة ' + x.last : 'لسه مفيش حركة', x.email].filter(Boolean).join(' · ');
         if (x.code !== 'mobily') {
           var acts = document.createElement('div'); acts.className = 'acts';
           var b1 = document.createElement('button'); b1.className = 'pay'; b1.textContent = 'دفع شهر';
@@ -122,7 +122,9 @@ button{background:linear-gradient(90deg,#22c3e6,#6d5cf6);color:#fff;font-weight:
           b2.className = x.status === 'suspended' ? '' : 'stop';
           b2.textContent = x.status === 'suspended' ? 'تفعيل' : 'إيقاف';
           b2.onclick = function(){ act(x.code, x.status === 'suspended' ? 'activate' : 'suspend', {}).then(function(r){ if (r) { flash('تم'); load(); } }); };
-          acts.appendChild(b1); acts.appendChild(b2);
+          var b3 = document.createElement('button'); b3.textContent = 'مدّ التجربة 7 أيام';
+          b3.onclick = function(){ act(x.code, 'extendTrial', { days: 7 }).then(function(r){ if (r) { flash('التجربة بقت لحد ' + r.trial_ends); load(); } }); };
+          acts.appendChild(b1); acts.appendChild(b3); acts.appendChild(b2);
           left.appendChild(acts);
         }
         var pill = document.createElement('span'); pill.className = 'pill ' + cls; pill.textContent = x.label;
