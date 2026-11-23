@@ -160,7 +160,11 @@ async function signup(ctx, p) {
   if (!name) throw new Error('اسم المحل مطلوب');
   const phone = T(p.phone).replace(/[^0-9+]/g, '').slice(0, 20);
 
-  const [t] = await sql.unsafe('select * from mobily_saas.create_tenant($1, $2, $3, $4)', [code, name, email, phone]);
+  const [t] = await sql.unsafe(
+    `select (r).code as code, (r).name as name, (r).schema_name as schema_name, ((r).trial_ends)::text as trial_ends
+     from (select mobily_saas.create_tenant($1, $2, $3, $4) as r) x`,
+    [code, name, email, phone]
+  );
   if (!t) throw new Error('تعذر فتح المحل، حاول تاني');
 
   // أول طلب على المحل الجديد بيشغّل تجهيز النظام نفسه (الإعدادات والمستويات وحساب صاحب المحل)
@@ -183,7 +187,7 @@ async function signup(ctx, p) {
     username: 'owner',
     password: pass,
     customerLink: site ? `${site}?s=${t.code}` : `?s=${t.code}`,
-    adminLink: site ? `${site}?s=${t.code}#admin` : `?s=${t.code}#admin`,
+    adminLink: site ? `${site}?p=admin&s=${t.code}` : `?p=admin&s=${t.code}`,
     trial_ends: t.trial_ends ? String(t.trial_ends).slice(0, 10) : '',
   };
 }
