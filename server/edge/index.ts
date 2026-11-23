@@ -100,6 +100,16 @@ async function verifyOwner(token: string) {
 }
 
 const ADMIN_FNS = ['adminApi', 'shopAdmin', 'geoAdmin', 'requests'];
+// لما يبقى اشتراك المحل منتهي: الإدارة بتقف، وكمان أي عملية بتضيف بيانات أو نقاط.
+// القراءة للعميل (الكارت، الرصيد، الطلبات القديمة) بتفضل شغالة، وولا بيان بيتمسح.
+const PUBLIC_WRITE = ['register'];
+const SHOP_WRITE = ['checkout', 'order', 'saveAddress', 'cancelOrder'];
+function blockedWhenInactive(fn: string, action: string) {
+  if (ADMIN_FNS.indexOf(fn) >= 0) return 'اشتراك المحل منتهي. كلّم صاحب البرنامج عشان تفعّله، وبياناتك كلها محفوظة زي ما هي.';
+  if (fn === 'publicApi' && PUBLIC_WRITE.indexOf(action) >= 0) return 'التسجيل في المحل ده متوقف مؤقتاً. كلّم المحل.';
+  if (fn === 'shop' && SHOP_WRITE.indexOf(action) >= 0) return 'المحل ده متوقف مؤقتاً، مش بيستقبل طلبات دلوقتي.';
+  return '';
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -128,8 +138,9 @@ Deno.serve(async (req: Request) => {
     const tenant = await findTenant(sql, body?.shop);
     if (!tenant || !SCHEMA_OK.test(tenant.schema_name)) return json({ result: { ok: false, error: 'المحل ده مش موجود' } });
     const state = subState(tenant);
-    if (!state.active && ADMIN_FNS.indexOf(fn) >= 0) {
-      return json({ result: { ok: false, error: 'اشتراك المحل منتهي. كلّم صاحب البرنامج عشان تفعّله، وبياناتك كلها محفوظة زي ما هي.', subscription: state } });
+    if (!state.active) {
+      const stop = blockedWhenInactive(fn, String((body?.args || [])[0] || ''));
+      if (stop) return json({ result: { ok: false, error: stop, subscription: state } });
     }
     const schema = tenant.schema_name;
     const tsql = scopedSql(sql, schema);
