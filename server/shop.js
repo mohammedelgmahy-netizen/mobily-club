@@ -1277,7 +1277,7 @@ export { STOCK_AR };
 // ======================= التقارير التفصيلية، الداشبورد، التصدير، النسخ الاحتياطي =======================
 // REPORT_ACTIONS: لصلاحية «لوحة المؤشرات». OWNER_DATA_ACTIONS: لصاحب المحل بس.
 export const REPORT_ACTIONS = ['salesItems', 'dashShop'];
-export const OWNER_DATA_ACTIONS = ['exportData', 'backupInfo', 'backupCreate', 'backupRestore'];
+export const OWNER_DATA_ACTIONS = ['exportData', 'backupInfo', 'backupCreate', 'backupRestore', 'wipeData'];
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TZ = 'Africa/Cairo';
 const OPEN_ST = ['pending', 'approved', 'preparing', 'ready', 'shipped'];
@@ -1541,10 +1541,46 @@ async function backupRestore(sql, user, p) {
   return { dry_run: false, ok: true, ...result };
 }
 
+// ---------- مسح البيانات الموجودة (صاحب المحل): المنتجات والأقسام والعروض وأكواد الخصم والمكافآت والإعدادات والموظفين مش بتتمسح أبداً ----------
+// كل محل بيمسح من الـ schema بتاعه بس (index.ts بيحوّل mobily. لـ schema المحل صاحب الطلب).
+const WIPE_SETS = {
+  orders: { label: 'الطلبات', sql: [
+    'delete from mobily.mc_shop_order_log', 'delete from mobily.mc_shop_orders', 'delete from mobily.mc_notification_reads', 'delete from mobily.mc_notifications',
+    'update mobily.mc_shop_stock set reserved = 0, updated_at = now() where reserved <> 0'] },
+  sales: { label: 'المبيعات والفواتير', sql: [
+    'delete from mobily.mc_transactions', 'delete from mobily.mc_redemptions', 'delete from mobily.mc_reward_claims',
+    'update mobily.mc_customers set total_spent = 0, purchases_count = 0, last_purchase_at = null'] },
+  points: { label: 'نقاط العملاء', sql: [
+    'delete from mobily.mc_pointsledger', "update mobily.mc_customers set points_balance = 0, lifetime_points = 0, tier = coalesce((select tier_id from mobily.mc_tiers where active is not false order by min_lifetime_points limit 1), '')"] },
+  customers: { label: 'العملاء', sql: [
+    'delete from mobily.mc_pointsledger', 'delete from mobily.mc_birthdayrewards', 'delete from mobily.mc_whatsappconsent', 'delete from mobily.mc_whatsapplog',
+    'delete from mobily.mc_reward_claims', 'delete from mobily.mc_shop_addresses', "delete from mobily.mc_push_subs where customer_id is not null and customer_id <> ''",
+    "delete from mobily.mc_notification_reads where notif_id in (select id from mobily.mc_notifications where audience = 'customer')", "delete from mobily.mc_notifications where audience = 'customer'",
+    'delete from mobily.mc_customers'] },
+  activity: { label: 'سجل العمليات', sql: ['delete from mobily.mc_activitylogs'] },
+};
+async function wipeData(sql, user, p) {
+  const sets = (Array.isArray(p.sets) ? p.sets : []).filter((k) => WIPE_SETS[k]);
+  if (!sets.length) throw new Error('اختار البيانات اللي عايز تمسحها');
+  if (T(p.confirm) !== 'مسح') throw new Error('اكتب كلمة «مسح» للتأكيد');
+  await sql.begin(async (tx) => {
+    // سجل حالات الطلبات مقفول ضد المسح العادي (append-only)، فبنوقف الـ triggers جوه العملية دي بس
+    await tx.unsafe('set local session_replication_role = replica');
+    for (const k of ['orders', 'sales', 'points', 'customers', 'activity']) {
+      if (sets.indexOf(k) < 0) continue;
+      for (const q of WIPE_SETS[k].sql) await tx.unsafe(q);
+    }
+    await tx.unsafe(`insert into mobily.mc_backups (kind, created_by, note) values ('wipe', $1, $2)`,
+      [user.name || '', 'مسح: ' + sets.map((k) => WIPE_SETS[k].label).join('، ')]);
+  });
+  return { done: true, sets };
+}
+
 async function ownerData(sql, user, action, p) {
   if (action === 'exportData') return exportData(sql, p);
   if (action === 'backupInfo') return backupInfo(sql);
   if (action === 'backupCreate') return backupCreate(sql, user, p);
   if (action === 'backupRestore') return backupRestore(sql, user, p);
+  if (action === 'wipeData') return wipeData(sql, user, p);
   throw new Error('طلب غير معروف');
 }
