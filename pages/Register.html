@@ -321,6 +321,11 @@ function waContactLink(settings, text) {
 
 <script>
 var BOOT = window.__MC_BOOT__;
+// اللون الأساسي للمحل (لو صاحب المحل اختار لون)
+(function(){
+  var c = BOOT && BOOT.settings && BOOT.settings.brand_color;
+  if (c && /^#[0-9a-fA-F]{6}$/.test(c)) document.documentElement.style.setProperty('--brand', c);
+})();
 var S = BOOT.settings;
 var LANG = store('mc_lang') || 'ar';
 var T = {

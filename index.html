@@ -24,7 +24,7 @@ window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); 
   // كود المحل من اللينك (?s=code) — من غيره بيفتح محل موبايلي زي ما كان
   window.MC_SHOP = String(params.s || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
   function fail(){ document.getElementById('m').innerHTML = 'تعذر الاتصال. تأكد من الإنترنت ثم <a href="" style="color:#22D3EE">أعد المحاولة</a>'; }
-  var V = {"Register":"375c7dab69","Card":"832d51cdf4","Unsub":"463c3be20d","Message":"4a901c5b01","Admin":"d443c242fc","Signup":"897e177177","Shops":"3e275f6a85"};
+  var V = {"Register":"debfc5ceda","Card":"d056f05ce6","Unsub":"463c3be20d","Message":"4a901c5b01","Admin":"d443c242fc","Signup":"f361907e9c","Shops":"3e275f6a85"};
   var getPage = function(n){ return fetch(base.replace(/[^/]*$/, '') + 'pages/' + n + '.html?v=' + V[n]).then(function(r){ if (!r.ok) throw new Error('page'); return r.text(); }); };
   var guess = params.p === 'admin' ? 'Admin' : params.p === 'unsub' ? 'Unsub' : params.t ? 'Card' : 'Register';
   var early = getPage(guess); early.catch(function(){});
