@@ -4,9 +4,9 @@ do $$
 declare s text;
 begin
   for s in select 'mobily_tpl' union select schema_name from mobily_saas.tenants loop
-    execute format($f$alter table %I.mc_shop_products add column if not exists price_display text not null default 'show'$f$, s);
-    execute format($f$do $x$ begin
-      alter table %I.mc_shop_products add constraint mc_shop_products_price_display_chk check (price_display in ('show','ask'));
-      exception when duplicate_object then null; end $x$$f$, s);
+    execute format('alter table %I.mc_shop_products add column if not exists price_display text not null default %L', s, 'show');
+    if not exists (select 1 from pg_constraint where conname = 'mc_shop_products_price_display_chk' and connamespace = s::regnamespace) then
+      execute format('alter table %I.mc_shop_products add constraint mc_shop_products_price_display_chk check (price_display in (%L, %L))', s, 'show', 'ask');
+    end if;
   end loop;
 end $$;
