@@ -63,6 +63,7 @@ function cleanProduct(p) {
     category_id: UUID.test(T(p.category_id)) ? T(p.category_id) : null,
     description: T(p.description).slice(0, 8000),
     price, old_price: old,
+    price_display: p.price_display === 'ask' ? 'ask' : 'show',
     available: p.available !== false,
     hidden: !!p.hidden,
     low_stock: p.low_stock === '' || p.low_stock === undefined || p.low_stock === null ? 3 : int(p.low_stock, 'حد التنبيه', 100000),
@@ -71,7 +72,7 @@ function cleanProduct(p) {
   };
 }
 
-const PRODUCT_COLS = 'id, code, category_id, name, description, price, old_price, available, hidden, low_stock, images, specs, colors, variants, earn_points, allow_general_offers, allow_special_offers, created_at, updated_at';
+const PRODUCT_COLS = 'id, code, category_id, name, description, price, old_price, price_display, available, hidden, low_stock, images, specs, colors, variants, earn_points, allow_general_offers, allow_special_offers, created_at, updated_at';
 const CATEGORY_COLS = 'id, name, icon, image, sort, hidden, earn_points, allow_general_offers, allow_special_offers';
 /* النقاط والعروض لكل قسم ولكل منتج (مستقلين عن بعض):
  * إعداد المنتج (نعم/لا) ليه الأولوية؛ لو المنتج «حسب القسم» (null) بياخد إعداد القسم؛ منتج من غير قسم = نعم.
@@ -169,6 +170,8 @@ async function catalog(sql) {
     const o = Object.assign({}, p, { available: !!p.available && sv.available > 0, stock_by_color: {} });
     sv.rows.forEach((x) => { o.stock_by_color[x.color] = p.available ? x.available : 0; });
     delete o.stock; delete o.low_stock;
+    // Ask Price: السعر مايخرجش من السيرفر للعميل خالص
+    if (o.price_display === 'ask') { delete o.price; delete o.old_price; }
     return o;
   });
   return d;
@@ -296,7 +299,7 @@ function spread(lines, d, key) {
 async function quote(q, customer, p, lockPromo) {
   const items = cleanItems(p.items);
   const ids = [...new Set(items.map((i) => i.product_id))];
-  const prods = await q.unsafe(`select p.id, p.name, p.code, p.price, p.old_price, p.available, p.hidden, p.colors, p.variants, p.category_id, p.low_stock, ${FLAG_SQL('p')}, ${STOCK_JSON},
+  const prods = await q.unsafe(`select p.id, p.name, p.code, p.price, p.old_price, p.price_display, p.available, p.hidden, p.colors, p.variants, p.category_id, p.low_stock, ${FLAG_SQL('p')}, ${STOCK_JSON},
       coalesce(p.images->0->>'t', p.images->0->>'u', '') as image,
       (p.category_id is null or exists (select 1 from mobily.mc_shop_categories k where k.id = p.category_id and not k.hidden)) as cat_ok
     from mobily.mc_shop_products p where p.id = any($1::uuid[])`, [ids]);
@@ -308,6 +311,7 @@ async function quote(q, customer, p, lockPromo) {
       color: it.color, variant: it.variant, qty: it.qty, unit_price: 0, old_price: 0, line_subtotal: 0, line_discount: 0, line_total: 0, error: '',
       earn_points: pr ? pr.pts !== false : true, _ofg: pr ? pr.ofg !== false : true, _ofs: pr ? pr.ofs !== false : true, _promo: 0, _bday: 0 };
     if (!pr || pr.hidden || !pr.cat_ok) { line.error = 'المنتج ده مش متاح دلوقتي'; return line; }
+    if (pr.price_display === 'ask') { line.error = 'اسأل عن السعر الأول (Ask Price)'; return line; }
     const colors = J(pr.colors, []).map((x) => x && x.n);
     const cim = J(pr.colors, []).find((x) => x && x.n === it.color && x.im && x.im.length);
     if (cim) line.image = cim.im[0].t || cim.im[0].u;
@@ -1224,6 +1228,8 @@ export async function handleShop(body, ctx) {
       const fl = ['earn_points', 'allow_general_offers', 'allow_special_offers'];
       const flGiven = fl.every((k) => Object.prototype.hasOwnProperty.call(p, k));
       const flVals = fl.map((k) => triBool(p[k]));
+      // طريقة عرض السعر: لو الصفحة القديمة ما بعتتهاش بتفضل زي ما هي
+      const pdGiven = Object.prototype.hasOwnProperty.call(p, 'price_display');
       if (p.id) {
         if (!UUID.test(T(p.id))) return bad('المنتج غير موجود');
         // لون عليه حجز لطلبات مفتوحة مينفعش يتشال من المنتج
@@ -1231,14 +1237,14 @@ export async function handleShop(body, ctx) {
         const held = await sql.unsafe('select color, reserved from mobily.mc_shop_stock where product_id = $1 and reserved > 0 and not (color = any($2::text[]))', [T(p.id), keys]);
         if (held.length) return bad('مينفعش تشيل ' + (held[0].color ? 'اللون «' + held[0].color + '»' : 'المنتج من غير لون') + '، عليه ' + held[0].reserved + ' محجوزين لطلبات مفتوحة');
         const r = await sql.unsafe(`update mobily.mc_shop_products set name=$1, category_id=$2, description=$3, price=$4, old_price=$5,
-          available=$6, hidden=$7, images=$8::text::jsonb, specs=$9::text::jsonb, colors=$10::text::jsonb, variants=$11::text::jsonb, code=$12, low_stock=$14, updated_at=now()${flGiven ? ', earn_points=$15, allow_general_offers=$16, allow_special_offers=$17' : ''}
-          where id=$13 returning id`, [...vals, v.code, T(p.id), v.low_stock, ...(flGiven ? flVals : [])]);
+          available=$6, hidden=$7, images=$8::text::jsonb, specs=$9::text::jsonb, colors=$10::text::jsonb, variants=$11::text::jsonb, code=$12, low_stock=$14, updated_at=now()${flGiven ? ', earn_points=$15, allow_general_offers=$16, allow_special_offers=$17' : ''}${pdGiven ? ', price_display=$' + (flGiven ? 18 : 15) : ''}
+          where id=$13 returning id`, [...vals, v.code, T(p.id), v.low_stock, ...(flGiven ? flVals : []), ...(pdGiven ? [v.price_display] : [])]);
         if (!r.length) return bad('المنتج غير موجود');
         return ok({ id: r[0].id });
       }
       const r = await sql.unsafe(`insert into mobily.mc_shop_products (name, category_id, description, price, old_price, available, hidden, images, specs, colors, variants, code, low_stock,
-          earn_points, allow_general_offers, allow_special_offers)
-        values ($1,$2,$3,$4,$5,$6,$7,$8::text::jsonb,$9::text::jsonb,$10::text::jsonb,$11::text::jsonb,$12,$13,$14,$15,$16) returning id`, [...vals, v.code, v.low_stock, ...flVals]);
+          earn_points, allow_general_offers, allow_special_offers, price_display)
+        values ($1,$2,$3,$4,$5,$6,$7,$8::text::jsonb,$9::text::jsonb,$10::text::jsonb,$11::text::jsonb,$12,$13,$14,$15,$16,$17) returning id`, [...vals, v.code, v.low_stock, ...flVals, v.price_display]);
       return ok({ id: r[0].id });
     }
 
