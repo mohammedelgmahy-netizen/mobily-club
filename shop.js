@@ -44,6 +44,9 @@
     '.pr{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;margin-top:auto}',
     '.pr b{font-family:Inter,Cairo,sans-serif;font-size:16px;font-weight:800;color:var(--brand)}',
     '.pr s{color:var(--muted);font-size:12.5px;font-family:Inter,Cairo,sans-serif}',
+    '.askp{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:12px;padding:8px 12px;font:inherit;font-weight:800;font-size:13.5px;cursor:pointer;color:#fff;background:#25D366;font-family:Inter,Cairo,sans-serif}',
+    '.pd-price .askp{font-size:16px;padding:11px 18px}',
+    '.pd-buy .askp{flex:1;font-size:17px;padding:14px 16px;border-radius:14px}',
     '.av{font-size:11.5px;font-weight:700}.av.y{color:var(--ok)}.av.n{color:var(--bad)}',
     '.sh-empty{text-align:center;color:var(--muted);padding:40px 20px;font-size:14px}.sh-empty div{font-size:44px;margin-bottom:6px}',
     '.sk{background:linear-gradient(90deg,rgba(255,255,255,.04),rgba(255,255,255,.09),rgba(255,255,255,.04));background-size:200% 100%;animation:shsk 1.2s infinite;border-radius:18px}',
@@ -191,6 +194,18 @@
   function esc(s) { return String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function cur() { try { return (window.D && D.settings && D.settings.currency) || 'ج.م'; } catch (e) { return 'ج.م'; } }
   function money(n) { return Number(n || 0).toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 2 }) + ' ' + esc(cur()); }
+  // Ask Price: السعر مخفي، والزر بيفتح واتساب المحل برسالة فيها اسم المنتج
+  function isAsk(p) { return p && p.price_display === 'ask'; }
+  function askBtn(p) { return '<button type="button" class="askp" data-ask="' + esc(p.id) + '">💬 Ask Price</button>'; }
+  function askPrice(p) {
+    var n = ''; try { n = String((window.D && D.settings && D.settings.whatsapp_number) || '').replace(/\D/g, ''); } catch (e) { }
+    window.open('https://wa.me/' + n + '?text=' + encodeURIComponent('السلام عليكم، أريد الاستفسار عن سعر المنتج: ' + p.name), '_blank');
+  }
+  function bindAsk(root) {
+    Array.prototype.forEach.call(root.querySelectorAll('[data-ask]'), function (b) {
+      b.onclick = function (e) { e.preventDefault(); e.stopPropagation(); var p = prodById(b.dataset.ask); if (p) askPrice(p); };
+    });
+  }
   function pct(p) { return p.old_price > p.price && p.old_price > 0 ? Math.round((1 - p.price / p.old_price) * 100) : 0; }
   function norm(s) { return String(s || '').toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[ً-ْ]/g, '').replace(/\s+/g, ' ').trim(); }
   function catById(id) { return ((DATA && DATA.categories) || []).filter(function (c) { return c.id === id; })[0]; }
@@ -372,13 +387,14 @@
     return '<a class="pc" href="#shop/p/' + esc(p.id) + '" data-pid="' + esc(p.id) + '"><div class="im">' +
       (t ? img(t, p.name, ' loading="lazy"') : '<span class="noimg">📦</span>') +
       (off ? '<span class="off">-' + off + '%</span>' : '') + (bdCovers(p) ? '<span class="bdb">🎂 عرض عيد ميلادك</span>' : '') + (p.available ? '' : '<span class="na">غير متوفر حالياً</span>') + '</div>' +
-      '<div class="bd"><div class="nm">' + esc(p.name) + '</div><div class="pr"><b>' + money(p.price) + '</b>' + (off ? '<s>' + money(p.old_price) + '</s>' : '') + '</div>' +
+      '<div class="bd"><div class="nm">' + esc(p.name) + '</div><div class="pr">' + (isAsk(p) ? askBtn(p) : '<b>' + money(p.price) + '</b>' + (off ? '<s>' + money(p.old_price) + '</s>' : '')) + '</div>' +
       '<div class="av ' + (p.available ? 'y">● متوفر' : 'n">● غير متوفر') + '</div></div></a>';
   }
   function bindCards(root) {
     Array.prototype.forEach.call(root.querySelectorAll('[data-pid]'), function (a) {
       a.onclick = function (e) { e.preventDefault(); nav('#shop/p/' + a.dataset.pid); };
     });
+    bindAsk(root);
   }
 
   function filtered() {
@@ -386,8 +402,9 @@
       if (ST.cat && p.category_id !== ST.cat) return false;
       return !q || norm(p.name).indexOf(q) >= 0;
     });
-    if (ST.sort === 'asc') list.sort(function (a, b) { return a.price - b.price; });
-    else if (ST.sort === 'desc') list.sort(function (a, b) { return b.price - a.price; });
+    var pv = function (p, d) { return isAsk(p) ? d : Number(p.price); }; // منتجات Ask Price في الآخر
+    if (ST.sort === 'asc') list.sort(function (a, b) { return pv(a, Infinity) - pv(b, Infinity) || 0; });
+    else if (ST.sort === 'desc') list.sort(function (a, b) { return pv(b, -Infinity) - pv(a, -Infinity) || 0; });
     else list.sort(function (a, b) { return a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0; });
     return list;
   }
@@ -448,7 +465,7 @@
       '<div class="pd-gal" id="pdGal"></div><div id="pdTh"></div>' +
       '<div class="pd-body">' + (c ? '<button type="button" class="pd-cat" id="pdCat">' + (c.image ? '' : esc(c.icon || '') + ' ') + esc(c.name) + '</button>' : '') +
       '<h1 class="pd-name">' + esc(p.name) + '</h1>' +
-      '<div class="pd-price"><b>' + money(p.price) + '</b>' + (off ? '<s>' + money(p.old_price) + '</s><span class="sv">خصم ' + off + '% · وفّر ' + money(p.old_price - p.price) + '</span>' : '') + '</div>' +
+      '<div class="pd-price">' + (isAsk(p) ? askBtn(p) : '<b>' + money(p.price) + '</b>' + (off ? '<s>' + money(p.old_price) + '</s><span class="sv">خصم ' + off + '% · وفّر ' + money(p.old_price - p.price) + '</span>' : '')) + '</div>' +
       '<span class="pd-av ' + (p.available ? 'y">✓ متوفر' : 'n">✕ غير متوفر حالياً') + '</span>' +
       (p.pts === false ? '<div class="pd-np">المنتج ده لا يحتسب عليه نقاط ولاء</div>' : '') +
       (bdCovers(p) ? '<div class="pd-bd">🎂 <b>' + esc(BD.name) + ': ' + esc(BD.text) + '</b><br>عرض خاص بعيد ميلادك، والخصم بيتطبق تلقائي لما تطلب.' + (bdEnd() ? ' صالح لحد ' + esc(bdEnd()) + '.' : '') + '</div>' : '') +
@@ -461,11 +478,11 @@
       (p.specs && p.specs.length ? '<div class="pd-sec"><h3>المواصفات</h3><table class="pd-specs">' + p.specs.map(function (s) { return '<tr><td dir="auto">' + esc(s[0]) + '</td><td dir="auto">' + esc(s[1]) + '</td></tr>'; }).join('') + '</table></div>' : '') +
       (rel.length ? '<div class="pd-sec" style="background:transparent;border:0;padding:0"><h3>منتجات مشابهة</h3><div class="pd-rel" id="pdRel">' + rel.map(card).join('') + '</div></div>' : '') +
       '</div><div class="sh-pad"></div>' +
-      '<div class="pd-buy"><div class="in two">' + (p.available && selAvail > 0
+      '<div class="pd-buy"><div class="in two">' + (isAsk(p) ? askBtn(p) : p.available && selAvail > 0
         ? '<button type="button" class="cart-btn" id="addCart">🛒 أضف إلى السلة</button><button type="button" class="order-btn" id="buyNow">⚡ اشترِ الآن</button>'
         : '<button type="button" class="cart-btn" disabled>🛒 أضف إلى السلة</button><button type="button" class="order-btn" disabled>' + (p.available ? 'اللون ده غير متوفر' : 'غير متوفر حالياً') + '</button>') + '</div></div>';
-    bindBack();
-    if (p.available && selAvail > 0) {
+    bindBack(); bindAsk(view);
+    if (!isAsk(p) && p.available && selAvail > 0) {
       document.getElementById('addCart').onclick = function () { optionSheet(p, 'cart'); };
       document.getElementById('buyNow').onclick = function () { optionSheet(p, 'buy'); };
     }

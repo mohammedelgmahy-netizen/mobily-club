@@ -285,6 +285,7 @@
       '<label>السعر والخصم</label><div class="sp-pricebox"><div class="row"><div><label>سعر البيع *</label><input id="pfPrice" inputmode="decimal" value="' + esc(p.price === '' ? '' : Number(p.price)) + '"></div>' +
       '<div><label>السعر قبل الخصم</label><input id="pfOld" inputmode="decimal" placeholder="سيبه فاضي لو مفيش خصم" value="' + esc(Number(p.old_price) ? Number(p.old_price) : '') + '"></div>' +
       '<div style="flex:0 0 90px"><label>الخصم %</label><input id="pfPct" inputmode="decimal" placeholder="0"></div></div><div class="sp-prev" id="pfPrev"></div></div>' +
+      '<label>Price Display Type</label><select id="pfPd"><option value="show"' + (p.price_display === 'ask' ? '' : ' selected') + '>Show Price (عرض السعر للعميل)</option><option value="ask"' + (p.price_display === 'ask' ? ' selected' : '') + '>Ask Price (إخفاء السعر وزر Ask Price)</option></select>' +
       '<label class="check"><input type="checkbox" id="pfAv"' + (p.available ? ' checked' : '') + '><span>متوفر في المحل</span></label>' +
       '<label class="check" style="margin-top:-6px"><input type="checkbox" id="pfVis"' + (p.hidden ? '' : ' checked') + '><span>ظاهر للعملاء في «تصفح منتجاتنا»</span></label>' +
       '<label>الوصف</label><textarea id="pfDesc" rows="5" placeholder="وصف كامل للمنتج">' + esc(p.description) + '</textarea>' +
@@ -372,7 +373,7 @@
       var btn = this; $('#pfErr').innerHTML = '';
       var payload = {
         id: p.id || '', name: $('#pfName').value, code: $('#pfCode').value, category_id: $('#pfCat').value, description: $('#pfDesc').value,
-        price: numVal($('#pfPrice')), old_price: numVal($('#pfOld')), available: $('#pfAv').checked, hidden: !$('#pfVis').checked,
+        price: numVal($('#pfPrice')), old_price: numVal($('#pfOld')), price_display: $('#pfPd').value === 'ask' ? 'ask' : 'show', available: $('#pfAv').checked, hidden: !$('#pfVis').checked,
         images: IM, specs: SP.filter(function (s) { return String(s[0]).trim() || String(s[1]).trim(); }), colors: CO.filter(function (c) { return String(c.n).trim(); }),
         variants: $('#pfVar').value.split(/[,،\n]/).map(function (s) { return s.trim(); }).filter(Boolean),
         low_stock: $('#pfLow').value.trim() === '' ? 3 : numVal($('#pfLow'))
