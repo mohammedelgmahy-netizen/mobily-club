@@ -462,5 +462,9 @@ $('#cardLoginForm').addEventListener('submit', function (ev) {
   window.addEventListener('appinstalled', function(){ b.remove(); });
 })();
 </script>
+<script>
+// رابط منتج مفتوح من غير كارت: صفحة المنتج بتظهر هنا
+if (/^#shop/.test(location.hash)) { var shs = document.createElement('script'); shs.src = 'shop.js?v=5f9ba7e4b9'; document.body.appendChild(shs); }
+</script>
 </body>
 </html>

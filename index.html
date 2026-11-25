@@ -23,6 +23,14 @@ window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); 
   var base = location.href.split('#')[0].split('?')[0];
   // كود المحل من اللينك (?s=code) — من غيره بيفتح محل موبايلي زي ما كان
   window.MC_SHOP = String(params.s || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+  // رابط منتج (?pr=ID): لو كارت العميل محفوظ على الجهاز لنفس المحل نفتح المنتج جوه الكارت
+  if (params.pr && !params.t && /^[\w-]{1,64}$/.test(params.pr)) {
+    try {
+      var sc = localStorage.getItem('mc_card') || '';
+      var scShop = (sc.match(/[?&]s=([a-z0-9-]+)/) || [])[1] || '';
+      if (/[?&]t=[a-f0-9]{64}/.test(sc) && scShop === window.MC_SHOP) { location.replace(sc.split('#')[0] + '#shop/p/' + params.pr); return; }
+    } catch (e) { }
+  }
   function fail(e){
     var msg = (typeof navigator !== 'undefined' && navigator.onLine === false) ? 'مفيش إنترنت. وصّل الواي فاي أو الداتا'
       : (e && (e.name === 'AbortError')) ? 'الطلب خد وقت طويل'
@@ -30,7 +38,7 @@ window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); 
       : 'تعذر الاتصال بالسيرفر';
     document.getElementById('m').innerHTML = msg + ' ثم <a href="" style="color:#22D3EE">أعد المحاولة</a>';
   }
-  var V = {"Register":"5f9402dfc6","Card":"38e331ba4d","Unsub":"175c40fd01","Message":"ddd64acd3c","Admin":"46b70ac015","Signup":"f361907e9c","Shops":"355e17c0c6"};
+  var V = {"Register":"d404e3524a","Card":"cb576026d9","Unsub":"175c40fd01","Message":"ddd64acd3c","Admin":"46b70ac015","Signup":"f361907e9c","Shops":"355e17c0c6"};
   var getPage = function(n){ return fetch(base.replace(/[^/]*$/, '') + 'pages/' + n + '.html?v=' + V[n]).then(function(r){ if (!r.ok) throw new Error('page'); return r.text(); }); };
   var guess = params.p === 'admin' ? 'Admin' : params.p === 'unsub' ? 'Unsub' : params.t ? 'Card' : 'Register';
   var early = getPage(guess); early.catch(function(){});

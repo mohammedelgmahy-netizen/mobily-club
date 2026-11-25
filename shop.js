@@ -192,14 +192,22 @@
   if (!app || !window.__mcPost) return;
 
   function esc(s) { return String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function cur() { try { return (window.D && D.settings && D.settings.currency) || 'ج.م'; } catch (e) { return 'ج.م'; } }
+  // إعدادات المحل: من الكارت، أو من بيانات الصفحة لو الصفحة اتفتحت من غير كارت (رابط منتج)
+  function sett() { try { return (window.D && D.settings) || (window.__MC_BOOT__ && __MC_BOOT__.settings) || {}; } catch (e) { return {}; } }
+  function cur() { return sett().currency || 'ج.م'; }
   function money(n) { return Number(n || 0).toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 2 }) + ' ' + esc(cur()); }
   // Ask Price: السعر مخفي، والزر بيفتح واتساب المحل برسالة فيها اسم المنتج
   function isAsk(p) { return p && p.price_display === 'ask'; }
   function askBtn(p) { return '<button type="button" class="askp" data-ask="' + esc(p.id) + '">💬 Ask Price</button>'; }
+  // رابط مباشر لصفحة المنتج نفسه (بيفتح في كارت العميل لو محفوظ على الجهاز، وإلا صفحة المنتج على الويب)
+  function productLink(p) {
+    var base = location.href.split('#')[0].split('?')[0];
+    return base + '?' + (window.MC_SHOP ? 's=' + encodeURIComponent(window.MC_SHOP) + '&' : '') + 'pr=' + encodeURIComponent(p.id) + '#shop/p/' + encodeURIComponent(p.id);
+  }
   function askPrice(p) {
-    var n = ''; try { n = String((window.D && D.settings && D.settings.whatsapp_number) || '').replace(/\D/g, ''); } catch (e) { }
-    window.open('https://wa.me/' + n + '?text=' + encodeURIComponent('السلام عليكم، أريد الاستفسار عن سعر المنتج: ' + p.name), '_blank');
+    var n = String(sett().whatsapp_number || '').replace(/\D/g, '');
+    var msg = 'السلام عليكم، أريد الاستفسار عن سعر المنتج التالي:\n\nاسم المنتج: ' + p.name + '\n\nرابط المنتج: ' + productLink(p);
+    window.open('https://wa.me/' + n + '?text=' + encodeURIComponent(msg), '_blank');
   }
   function bindAsk(root) {
     Array.prototype.forEach.call(root.querySelectorAll('[data-ask]'), function (b) {
